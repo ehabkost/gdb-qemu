@@ -14,9 +14,16 @@ def translate_exception(fn):
     @wraps(fn)
     def f(*args, **kwargs):
         try:
-            return fn(*args, **kwargs)
+            print('will call: %r(*%r, **%r)' % (fn, args, kwargs))
+            r = fn(*args, **kwargs)
+            print('return value: %r' % (r))
+            return r
         except gdb.error as e:
+            print('exception: %r' % (e))
             raise GdbError(str(e))
+        except:
+            print('exception2: %r' % (e))
+            raise
     return f
 
 class GdbModuleWrapper(object):

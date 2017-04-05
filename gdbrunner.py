@@ -44,8 +44,8 @@ class GDB(object):
         if self._process:
             return
 
-        self._tmpdir = tempfile.mkdtemp('gdbrunner-script')
-        self._socketpath = os.path.join(self._tmpdir, 'socket')
+        self._tmpdir = tempfile.TemporaryDirectory('gdbrunner-script')
+        self._socketpath = os.path.join(self._tmpdir.name, 'socket')
         self._process = subprocess.Popen(
             ['gdb', '-P', os.path.join(MY_DIR, 'gdbscript.py')],
             stdout=self._stdout, stderr=self._stderr,
@@ -60,6 +60,12 @@ class GDB(object):
         self._manager.connect()
         self._gdb_module = self._manager.GdbModuleWrapper()
 
+        self.gdb_setup()
+
+    def gdb_setup(self):
+        """Set up some GDB settings"""
+        self.execute('set pagination off')
+
     def execute(self, *args, **kwargs):
         return self._gdb_module.execute(*args, **kwargs)
 
@@ -67,7 +73,11 @@ class GDB(object):
         if self._process:
             self._process.terminate()
             self._process.wait()
+            r = self._process.returncode
+            if r != 0:
+                raise Exception("non-zero exit code of gdb: %r", self._process.returncode)
             self._process = None
+            self._tmpdir.cleanup()
 
     def __del__(self):
         self.quit()
