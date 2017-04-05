@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 #
 # Simple test script for gdbrunner
 #
@@ -22,7 +22,25 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 import gdbrunner
+import unittest
 
-gdb = gdbrunner.GDB(program='/bin/cat /dev/null')
-gdb.execute('run')
-gdb.execute('quit')
+# test error handling:
+
+class GdbRunnerTest(unittest.TestCase):
+    def setUp(self):
+        self.gdb = gdbrunner.GDB()
+
+    def tearDown(self):
+        self.gdb.quit()
+
+    def testExceptionHandling(self):
+        gdb = gdbrunner.GDB()
+        with self.assertRaises(gdbrunner.GdbError):
+            self.gdb.execute('file /non/existing/file')
+
+    def testSimpleProcess(self):
+        self.gdb.execute('file /bin/true')
+        self.gdb.execute('run')
+
+if __name__ == '__main__':
+    unittest.main()
