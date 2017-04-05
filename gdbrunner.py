@@ -19,17 +19,11 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 import os, subprocess, tempfile, time
-from multiprocessing.managers import BaseManager
-
-WAIT_TIME = 0.1
-RETRIES = 100
+from multiprocessing.connection import Listener
 
 MY_DIR = os.path.dirname(__file__)
 
 class GdbError(RuntimeError):
-    pass
-
-class GdbManager(BaseManager):
     pass
 
 class GDB(object):
@@ -46,37 +40,40 @@ class GDB(object):
 
         self._tmpdir = tempfile.TemporaryDirectory('gdbrunner-script')
         self._socketpath = os.path.join(self._tmpdir.name, 'socket')
+        self._listener = Listener(self._socketpath)
         self._process = subprocess.Popen(
             ['gdb', '-P', os.path.join(MY_DIR, 'gdbscript.py')],
             stdout=self._stdout, stderr=self._stderr,
             env=dict(GDBSCRIPT_ADDRESS=self._socketpath))
-        self._manager = GdbManager(address=self._socketpath, authkey=b'1234')
-        self._manager.register('GdbModuleWrapper')
-        self._manager.register('ServerController')
-        for i in range(RETRIES):
-            if os.path.exists(self._socketpath):
-                break
-            time.sleep(WAIT_TIME)
-        self._manager.connect()
-        self._gdb_module = self._manager.GdbModuleWrapper()
-
+        self._conn = self._listener.accept()
         self.gdb_setup()
+
+    def make_request(self, method, args=(), kwargs={}):
+        request = (method, args, kwargs)
+        self._conn.send(request)
+        response = self._conn.recv()
+        r,e = response
+        if e is not None:
+            raise e
+        else:
+            return r
+
+    def execute(self, *args, **kwargs):
+        return self.make_request('execute', args, kwargs)
 
     def gdb_setup(self):
         """Set up some GDB settings"""
         self.execute('set pagination off')
 
-    def execute(self, *args, **kwargs):
-        return self._gdb_module.execute(*args, **kwargs)
-
     def quit(self):
         if self._process:
-            self._process.terminate()
+            self.make_request('quit')
             self._process.wait()
             r = self._process.returncode
             if r != 0:
                 raise Exception("non-zero exit code of gdb: %r", self._process.returncode)
             self._process = None
+            self._listener.close()
             self._tmpdir.cleanup()
 
     def __del__(self):

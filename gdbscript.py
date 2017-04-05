@@ -1,8 +1,12 @@
 import gdb
-from gdbrunner import GdbManager, GdbError
+from gdbrunner import GdbError
 import traceback, os
-from multiprocessing.managers import BaseManager
+from multiprocessing.connection import Client
 from functools import wraps
+import logging
+
+logger = logging.getLogger('gdbscript')
+dbg = logger.debug
 
 def translate_exception(fn):
     """decorator that translates gdb exceptions to GdbError
@@ -14,36 +18,59 @@ def translate_exception(fn):
     @wraps(fn)
     def f(*args, **kwargs):
         try:
-            print('will call: %r(*%r, **%r)' % (fn, args, kwargs))
+            dbg('will call: %r(*%r, **%r)', fn, args, kwargs)
             r = fn(*args, **kwargs)
-            print('return value: %r' % (r))
+            dbg('return value: %r', r)
             return r
         except gdb.error as e:
-            print('exception: %r' % (e))
+            dbg('exception: %r', e)
             raise GdbError(str(e))
-        except:
-            print('exception2: %r' % (e))
+        except Exception as e:
+            dbg('exception2: %r', e)
             raise
     return f
 
-class GdbModuleWrapper(object):
+class GDBScriptWrapper(object):
     """Wrapper around the 'gdb' module methods"""
+    def __init__(self):
+        self.running = True
+
     @translate_exception
     def execute(self, *args, **kwargs):
         return gdb.execute(*args, **kwargs)
 
-def run_server():
+    def quit(self):
+        self.running = False
+
+def run_client():
+    """Single-thread server that will dispatch method calls to
+    a GdbScriptWrapper object.
+
+    We don't use Python's multiprocess.BaseManager because
+    calling gdb methods from separate threads can make GDB crash.
+    """
     addr = os.getenv('GDBSCRIPT_ADDRESS')
     if addr is None:
         raise Exception("GDBSCRIPT_ADDRESS not set")
 
-    m = GdbManager(address=addr, authkey=b'1234')
-    m.register('GdbModuleWrapper', callable=GdbModuleWrapper)
-    s = m.get_server()
-    s.serve_forever()
+    wrapper = GDBScriptWrapper()
+
+    conn = Client(addr)
+    while wrapper.running:
+        request = conn.recv()
+        method,args,kwargs = request
+        fn = getattr(wrapper, method)
+        r = None
+        e = None
+        tb = None
+        try:
+            r = fn(*args, **kwargs)
+        except Exception as exc:
+            e = exc
+        conn.send( (r, e) )
 
 try:
-    run_server()
+    run_client()
 except SystemExit:
     # expected exception
     raise

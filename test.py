@@ -72,11 +72,11 @@ class DebuggingTest(unittest.TestCase):
         self.gdb.execute('file %s' % (self.bin_file))
         self.gdb.execute('break main')
         self.gdb.execute('run')
-        self.gdb.execute('print myvar')
+        self.gdb.execute('print myvar', to_string=True)
         self.gdb.execute('next')
-        self.gdb.execute('print myvar')
+        self.gdb.execute('print myvar', to_string=True)
         self.gdb.execute('next')
-        self.gdb.execute('print myvar')
+        self.gdb.execute('print myvar', to_string=True)
         self.gdb.execute('next')
 
 if __name__ == '__main__':
