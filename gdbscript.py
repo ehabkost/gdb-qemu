@@ -59,11 +59,11 @@ def run_client():
     while wrapper.running:
         request = conn.recv()
         method,args,kwargs = request
-        fn = getattr(wrapper, method)
         r = None
         e = None
         tb = None
         try:
+            fn = getattr(wrapper, method)
             r = fn(*args, **kwargs)
         except Exception as exc:
             e = exc
