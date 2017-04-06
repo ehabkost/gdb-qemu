@@ -199,7 +199,8 @@ def qtailq_foreach(head, field):
 def global_prop_info(gp):
     """Return dictionary with info about a GlobalProperty"""
     r = value_to_dict(gp)
-    del r['next'] # no need to return the linked-list field
+    if 'next' in r:
+        del r['next'] # no need to return the linked-list field
     return r
 
 def compat_props_garray(v):
