@@ -38,10 +38,18 @@ import re
 logger = logging.getLogger('dump-machine-info')
 dbg = logger.debug
 
-def require_escaping(s):
-    invalid_chars = re.compile('[\\\'\" \s]')
+def gdb_escape(s):
+    invalid_chars = re.compile(r"""['"\\\s]""")
     if invalid_chars.search(s):
-        return True
+        raise Exception("Sorry, I don't know how to escape %r in a gdb command" % (s))
+    return s
+
+def c_string(s):
+    # be very conservative, just in case:
+    invalid_chars = re.compile(r'["\\\n]')
+    if invalid_chars.search(s):
+        raise Exception("Sorry, I don't know how to escape %r in a C string" % (s))
+    return '"%s"' % (s)
 
 def execute(*args, **kwargs):
     dbg('executing command: %r, %r', args, kwargs)
@@ -135,9 +143,7 @@ def compat_props(v):
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
 def query_machine(machine):
-    if require_escaping(machine):
-        parser.error("Sorry, this machine-type name won't work")
-    mi = gdb.parse_and_eval('find_machine("%s")' % (machine))
+    mi = gdb.parse_and_eval('find_machine(%s)' % (c_string(machine)))
     if int(mi) == 0:
         raise Exception("Can't find machine type %s" % (machine))
 
@@ -190,10 +196,7 @@ def dev_class_props(dc):
 
 
 def query_device_type(devtype):
-    if require_escaping(devtype):
-        parser.error("Sorry, this device type name won't work")
-
-    oc = gdb.parse_and_eval('object_class_by_name("%s")' % (devtype))
+    oc = gdb.parse_and_eval('object_class_by_name(%s)' % (c_string(devtype)))
     if int(oc) == 0:
         raise Exception("Can't find type %s" % (devtype))
 
@@ -246,15 +249,14 @@ if args.debug:
 logging.basicConfig(stream=sys.stderr, level=lvl)
 
 dbg(gdb.__file__)
-if require_escaping(args.qemu_binary):
-    parser.error("Sorry, this QEMU binary name won't work")
+
 if not args.requests:
     parser.error("No action was requested")
 
 # basic setup, to make GDB behave more predictably:
 execute('set pagination off')
 
-execute('file %s' % (args.qemu_binary))
+execute('file %s' % (gdb_escape(args.qemu_binary)))
 execute('set args -S -machine none -nographic')
 # find_machine() exists since the -M optino was added, so it
 # is a safe place where we know the machine type tables are available
