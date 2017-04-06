@@ -33,15 +33,15 @@ import argparse
 import logging
 import traceback
 import json
+import re
 
 logger = logging.getLogger('dump-machine-info')
 dbg = logger.debug
 
 def require_escaping(s):
-    invalid_chars = '\\\'\" '
-    for c in invalid_chars:
-        if c in s:
-            return True
+    invalid_chars = re.compile('[\\\'\" \s]')
+    if invalid_chars.search(s):
+        return True
 
 def execute(*args, **kwargs):
     dbg('executing command: %r, %r', args, kwargs)
