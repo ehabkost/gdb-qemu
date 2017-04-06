@@ -20,12 +20,11 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+##############################################################################
 
-
-# ----------------------------------------------------------
-# Note that we don't know what's the Python version used
-# by the available GDB version, so try to keep this script
-# compatible with both Python 3 and Python 2.7.
+# PYTHON VERSION:
+# This script has been tested only with a GDB binary that
+# uses the Python 3 interpreter
 
 import gdb
 import sys
