@@ -38,6 +38,14 @@ import re
 logger = logging.getLogger('dump-machine-info')
 dbg = logger.debug
 
+def E(expr):
+    """Shortcut to gdb.parse_and_eval()"""
+    return gdb.parse_and_eval(expr)
+
+def T(name):
+    """Shortcuto to gdb.lookup_type()"""
+    return gdb.lookup_type(name)
+
 def gdb_escape(s):
     """Escape string to use it on a gdb command"""
     invalid_chars = re.compile(r"""['"\\\s]""")
@@ -112,7 +120,7 @@ def value_to_dict(v):
             int(fv) == 0: # NULL pointer
             rv = None
         elif code == gdb.TYPE_CODE_PTR and \
-             t.target().unqualified() == gdb.lookup_type('char'):
+             t.target().unqualified() == T('char'):
             rv = fv.string()
         elif code == gdb.TYPE_CODE_PTR and \
              t.target().code == gdb.TYPE_CODE_FUNC:
@@ -143,12 +151,12 @@ def compat_props_garray(v):
         return []
 
     #dbg("garray: %s", v)
-    g_array_get_element_size = gdb.parse_and_eval('g_array_get_element_size')
+    g_array_get_element_size = E('g_array_get_element_size')
     elem_sz = g_array_get_element_size(v)
     #dbg("elem sz: %d", elem_sz)
     count = int(v['len'])
     #dbg("%d elements", count)
-    gptype = gdb.lookup_type('GlobalProperty').pointer()
+    gptype = T('GlobalProperty').pointer()
     data = v['data']
     for i in range(count):
         addr = data + i*elem_sz
@@ -173,16 +181,16 @@ def compat_props(mi):
 
     # currently we can only handle the GArray version of compat_props:
     #dbg("cp type: %s", cp.type)
-    if cp.type == gdb.lookup_type('GArray').pointer():
+    if cp.type == T('GArray').pointer():
         return list(compat_props_garray(cp))
-    elif cp.type == gdb.lookup_type('GlobalProperty').pointer():
+    elif cp.type == T('GlobalProperty').pointer():
         return list(compat_props_gp_array(cp))
     else:
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
 def query_machine(machine):
     """Query raw information for a machine-type name"""
-    mi = gdb.parse_and_eval('find_machine(%s)' % (c_string(machine)))
+    mi = E('find_machine(%s)' % (c_string(machine)))
     if int(mi) == 0:
         raise Exception("Can't find machine type %s" % (machine))
 
@@ -207,11 +215,11 @@ def prop_info(prop):
     r['info'] = value_to_dict(prop['info'])
 
     defval = prop['defval']
-    if int(prop['qtype']) == int(gdb.parse_and_eval('QTYPE_QBOOL')):
+    if int(prop['qtype']) == int(E('QTYPE_QBOOL')):
         r['defval'] = bool(defval)
     elif int(prop['info']['enum_table']) != 0:
         r['defval'] = (prop['info']['enum_table'] + int(defval)).dereference().string()
-    elif int(prop['qtype']) == int(gdb.parse_and_eval('QTYPE_QINT')):
+    elif int(prop['qtype']) == int(E('QTYPE_QINT')):
         r['defval'] = int(defval)
     else: # default value won't have any effect
         del r['defval']
@@ -227,29 +235,95 @@ def dev_class_props(dc):
         yield prop_info(prop)
         prop += 1
 
-    get_parent = gdb.parse_and_eval('object_class_get_parent')
-    dynamic_cast = gdb.parse_and_eval('object_class_dynamic_cast')
-    oc = dc.cast(gdb.lookup_type('ObjectClass').pointer())
+    get_parent = E('object_class_get_parent')
+    dynamic_cast = E('object_class_dynamic_cast')
+    oc = dc.cast(T('ObjectClass').pointer())
     parent = get_parent(oc)
-    devstr = gdb.parse_and_eval('"device"')
+    devstr = E('"device"')
     parent = dynamic_cast(parent, devstr)
     if int(parent) != 0:
-        parent_dc = parent.cast(gdb.lookup_type('DeviceClass').pointer())
+        parent_dc = parent.cast(T('DeviceClass').pointer())
         for p in dev_class_props(parent_dc):
             yield p
 
+def g_new0(t):
+    return E('g_malloc0(%d)' % (t.sizeof)).cast(t.pointer())
+
+def g_free(ptr):
+    return E('g_free')(ptr)
+
+def qtailq_foreach(head, field):
+    var = head['tqh_first']
+    while int(var) != 0:
+        yield var
+        var = var[field]['tqe_next']
+
+def qobject_value(qobj):
+    """Convert QObject value to a Python value"""
+    tcode = qobj['type']['code']
+    if tcode == E('QTYPE_NONE'):
+        return None
+    elif tcode == E('QTYPE_QINT'):
+        return int(E('qint_get_int')(E('qobject_to_qint')(qobj)))
+    elif tcode == E('QTYPE_QSTRING'):
+        return E('qstring_get_str')(E('qobject_to_qstring')(qobj)).string()
+    elif tcode == E('QTYPE_QFLOAT'):
+        return float('qfloat_get_float')(E('qobject_to_qfloat')(qobj))
+    elif tcode == E('QTYPE_QBOOL'):
+        return bool(E('qbool_get_int')(E('qobject_to_qbool')(qobj)))
+    elif tcode == E('QTYPE_QDICT'):
+        raise Exception("can't handle %s qdict type", tcode)
+
+def object_iter_props(obj):
+    """Iterate over properties of a given Object*"""
+    # hack to allocate a ObjectPropertyIterator struct:
+    itertype = None
+    try:
+        itertype = T('ObjectPropertyIterator')
+    except:
+        pass
+
+    if itertype:
+        iterptr = g_new0(itertype)
+        try:
+            E('object_property_iter_init')(iterptr)
+            while True:
+                prop = E('object_property_iter_next')(iterptr)
+                if int(prop) == 0:
+                    break
+                yield prop
+        finally:
+            g_free(iterptr)
+    else:
+        for p in qtailq_foreach(obj['properties'], 'node'):
+            yield p
+
+def object_class_instance_props(oc):
+    """Query QOM properties available when actual instantiating an object"""
+    object_new = E('object_new')
+    obj = E('object_new')(E('object_class_get_name')(oc))
+
+    try:
+        for prop in object_iter_props(obj):
+            p = value_to_dict(prop)
+            val = E('object_property_get_qobject')(obj, prop['name'], E('(Error**)0'))
+            p['value'] = qobject_value(val)
+            yield p
+    finally:
+        E('object_unref')(obj)
 
 def query_device_type(devtype):
     """Query information for a specific device type name"""
-    oc = gdb.parse_and_eval('object_class_by_name(%s)' % (c_string(devtype)))
+    oc = E('object_class_by_name(%s)' % (c_string(devtype)))
     if int(oc) == 0:
         raise Exception("Can't find type %s" % (devtype))
 
-    dc = oc.cast(gdb.lookup_type('DeviceClass').pointer())
+    dc = oc.cast(T('DeviceClass').pointer())
     dbg("oc: 0x%x, dc: 0x%x", int(oc), int(dc))
     result = {}
     result.update(value_to_dict(dc))
     result['props'] = list(dev_class_props(dc))
+    result['instance_props'] = list(object_class_instance_props(oc))
     return result
 
 # The functions that will handle each type of request
