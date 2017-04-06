@@ -66,8 +66,13 @@ class QEMUBinaryInfo:
 
     def extract_binary_data(self, args):
         self.raw_data = []
-        self.append_raw_item('version', {'help': self.get_stdout('-version'),
-                                         'rpm-qf': self.get_rpm_package()})
+        version_info = {'help': self.get_stdout('-version'),
+                        'rpm-qf': self.get_rpm_package() }
+        try:
+            version_info['os-release'] = open('/etc/os-release').read()
+        except IOError:
+            pass
+        self.append_raw_item('version', version_info)
         self.append_raw_item('help', self.get_stdout('-help'))
         self.append_raw_item('device-help', self.get_stdout('-device', 'help'))
         self.append_raw_item('machine-help', self.get_stdout('-machine', 'help'))
