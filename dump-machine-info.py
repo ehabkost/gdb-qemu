@@ -79,6 +79,11 @@ def value_to_dict(v):
             r[f.name] = rv
     return r
 
+def global_prop_info(gp):
+    return dict(driver=gp['driver'].string(),
+                property=gp['property'].string(),
+                value=gp['value'].string())
+
 def compat_props_garray(v):
     if int(v) == 0: # NULL pointer
         return []
@@ -95,9 +100,14 @@ def compat_props_garray(v):
         addr = data + i*elem_sz
         #dbg("addr for elem %d: %x", i, int(addr))
         gp = addr.cast(gptype.pointer()).dereference()
-        yield dict(driver=gp['driver'].string(),
-                   property=gp['property'].string(),
-                   value=gp['value'].string())
+        yield global_prop_info(gp)
+
+def compat_props_gp_array(cp):
+    """Return compat_props list for GlobalProperty[] array"""
+    while int(cp['driver']) != 0:
+        dbg("cp addr: %x", int(cp))
+        yield global_prop_info(cp)
+        cp += 1
 
 def compat_props(v):
     """Return list for items in compat_props"""
@@ -107,8 +117,10 @@ def compat_props(v):
     #dbg("cp type: %s", cp.type)
     if cp.type == gdb.lookup_type('GArray').pointer():
         return list(compat_props_garray(cp))
+    elif cp.type == gdb.lookup_type('GlobalProperty').pointer():
+        return list(compat_props_gp_array(cp))
     else:
-        raise Exception("unsupported compat_pros type: %s" % (v.type))
+        raise Exception("unsupported compat_props type: %s" % (cp.type))
 
 
 parser = argparse.ArgumentParser(prog='dump-machine-info.py',
