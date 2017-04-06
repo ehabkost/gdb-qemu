@@ -46,6 +46,23 @@ def T(name):
     """Shortcuto to gdb.lookup_type()"""
     return gdb.lookup_type(name)
 
+
+def command_loop():
+    prev = None
+    while True:
+        cmd = input("gdb> ")
+        if not cmd:
+            cmd = prev
+        if cmd:
+            try:
+                gdb.execute(cmd, from_tty=True)
+            except KeyboardInterrupt:
+                raise
+            except:
+                traceback.print_exc()
+                pass
+            prev = cmd
+
 def gdb_escape(s):
     """Escape string to use it on a gdb command"""
     invalid_chars = re.compile(r"""['"\\\s]""")
@@ -89,6 +106,43 @@ def enumerate_fields(t):
             for bitpos, name, sf in enumerate_fields(f.type.strip_typedefs()):
                 yield (f.bitpos + bitpos, '%s.%s' % (f.name, sf.name), sf)
 
+def find_field(t, fieldname):
+    """Find a field on a value or type"""
+    if type(t) == gdb.Value:
+        t = t.type
+    if t.code == gdb.TYPE_CODE_PTR:
+        t = t.target()
+    for f in t.fields():
+        if f.name == fieldname:
+            return f
+
+def value_to_py(v):
+    """Convert a single value to an equivalent Python value"""
+    t = v.type.strip_typedefs()
+    code = t.code
+    #dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))   w
+    #if code == gdb.TYPE_CODE_PTR:
+    #    dbg("target code: %s", type_code_name(t.target().code))
+    if code == gdb.TYPE_CODE_INT:
+        return int(v)
+    elif code == gdb.TYPE_CODE_BOOL:
+        return bool(v)
+    elif code == gdb.TYPE_CODE_PTR and \
+        int(v) == 0: # NULL pointer
+        return None
+    elif code == gdb.TYPE_CODE_PTR and \
+         t.target().unqualified() == T('char'):
+        return v.string()
+    elif code == gdb.TYPE_CODE_PTR and \
+         t.target().code == gdb.TYPE_CODE_FUNC:
+         return str(v)
+    elif code == gdb.TYPE_CODE_ENUM:
+        return str(v)
+    elif code == gdb.TYPE_CODE_STRUCT:
+        return value_to_dict(v)
+    else:
+        raise ValueError("Unsupported value type: %s" % (t))
+
 def value_to_dict(v):
     """Return dictionary containing field values from GDB value @v
 
@@ -105,34 +159,11 @@ def value_to_dict(v):
     #dbg("address of value: %x", int(v.address))
     for f in v.type.fields():
         fv = v[f.name]
-        t = fv.type.strip_typedefs()
-        code = t.code
-        #dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))
-        if code == gdb.TYPE_CODE_PTR:
-            #dbg("target code: %s", type_code_name(t.target().code))
+        try:
+            #dbg("r[%r] = %r", f.name, rv)
+            r[f.name] = value_to_py(fv)
+        except ValueError:
             pass
-        rv = None
-        if code == gdb.TYPE_CODE_INT:
-            rv = int(fv)
-        elif code == gdb.TYPE_CODE_BOOL:
-            rv = bool(fv)
-        elif code == gdb.TYPE_CODE_PTR and \
-            int(fv) == 0: # NULL pointer
-            rv = None
-        elif code == gdb.TYPE_CODE_PTR and \
-             t.target().unqualified() == T('char'):
-            rv = fv.string()
-        elif code == gdb.TYPE_CODE_PTR and \
-             t.target().code == gdb.TYPE_CODE_FUNC:
-
-             rv = str(fv)
-        elif code == gdb.TYPE_CODE_STRUCT:
-            rv = value_to_dict(fv)
-        else:
-            continue
-
-        #dbg("r[%r] = %r", f.name, rv)
-        r[f.name] = rv
     return r
 
 def global_prop_info(gp):
@@ -260,19 +291,28 @@ def qtailq_foreach(head, field):
 
 def qobject_value(qobj):
     """Convert QObject value to a Python value"""
-    tcode = qobj['type']['code']
-    if tcode == E('QTYPE_NONE'):
+    dbg("qobj: %r", value_to_dict(qobj))
+    dbg("qobj type: %s (size: %d)" % (qobj.type, qobj.type.sizeof))
+    #execute("x /%dxb 0x%x" % (qobj.type.sizeof, int(qobj)))
+    #execute("p qstring_get_str(0x%x)" % (int(qobj)))
+    qtype = qobj['type']
+    if find_field(qtype, 'code'):
+        qtype = qtype['code']
+    if qtype == E('QTYPE_NONE'):
         return None
-    elif tcode == E('QTYPE_QINT'):
-        return int(E('qint_get_int')(E('qobject_to_qint')(qobj)))
-    elif tcode == E('QTYPE_QSTRING'):
-        return E('qstring_get_str')(E('qobject_to_qstring')(qobj)).string()
-    elif tcode == E('QTYPE_QFLOAT'):
-        return float('qfloat_get_float')(E('qobject_to_qfloat')(qobj))
-    elif tcode == E('QTYPE_QBOOL'):
-        return bool(E('qbool_get_int')(E('qobject_to_qbool')(qobj)))
-    elif tcode == E('QTYPE_QDICT'):
-        raise Exception("can't handle %s qdict type", tcode)
+    elif qtype == E('QTYPE_QINT'):
+        return int(E('qint_get_int')(qobj.cast(T('QInt').pointer())))
+    elif qtype == E('QTYPE_QSTRING'):
+        return E('qstring_get_str')(qobj.cast(T('QString').pointer())).string()
+    elif qtype == E('QTYPE_QFLOAT'):
+        return float('qfloat_get_float')(qobj.cast(T('QFloat').pointer()))
+    elif qtype == E('QTYPE_QBOOL'):
+        try:
+            return bool(E('qbool_get_bool')(qobj.cast(T('QBool').pointer())))
+        except:
+            return bool(E('qbool_get_int')(qobj.cast(T('QBool').pointer())))
+    elif qtype == E('QTYPE_QDICT'):
+        raise Exception("can't handle %s qobject type" % (qtype))
 
 def object_iter_props(obj):
     """Iterate over properties of a given Object*"""
@@ -280,13 +320,15 @@ def object_iter_props(obj):
     itertype = None
     try:
         itertype = T('ObjectPropertyIterator')
+    except KeyboardInterrupt:
+        raise
     except:
         pass
 
     if itertype:
         iterptr = g_new0(itertype)
         try:
-            E('object_property_iter_init')(iterptr)
+            E('object_property_iter_init')(iterptr, obj)
             while True:
                 prop = E('object_property_iter_next')(iterptr)
                 if int(prop) == 0:
@@ -299,15 +341,44 @@ def object_iter_props(obj):
             yield p
 
 def object_class_instance_props(oc):
-    """Query QOM properties available when actual instantiating an object"""
-    object_new = E('object_new')
-    obj = E('object_new')(E('object_class_get_name')(oc))
+    """Try to query QOM properties available when actual instantiating an object"""
+    if bool(E('object_class_is_abstract')(oc)):
+        return
 
+    # this operation is very risky: there are lots of devices that
+    # don't expect to be created using object_new() and have their
+    # properties queried without realizing the device first
+    #
+    # Some examples:
+    # * getting the value of a child property triggers the obj->parent != NULL assertion
+    #   at object_get_canonical_path_component() and I don't know why
+    # * pc-dimm "size" property will crash if dimm->hostmem is not set
+
+    obj = E('object_new')(E('object_class_get_name')(oc))
     try:
         for prop in object_iter_props(obj):
             p = value_to_dict(prop)
-            val = E('object_property_get_qobject')(obj, prop['name'], E('(Error**)0'))
-            p['value'] = qobject_value(val)
+            if p['type'].startswith("child<"):
+                # getting the value of a child property triggers the obj->parent != NULL assertion
+                # at object_get_canonical_path_component() and I don't know why
+                continue
+            execute("set unwindonsignal on")
+            errp = g_new0(T('Error').pointer())
+            try:
+                val = E('object_property_get_qobject')(obj, prop['name'], errp)
+                if int(errp.dereference()) == 0:
+                    p['value'] = qobject_value(val)
+                else:
+                    msg = E('error_get_pretty')(errp.dereference()).string()
+                    logger.info("Error trying to get property %r from devtype %r: %s" % (p['name'], E('object_class_get_name')(oc).string(), msg))
+            except KeyboardInterrupt:
+                raise
+            except:
+                logger.warning("Exception trying to get property %r from devtype %r" % (p['name'], E('object_class_get_name')(oc).string()))
+                logger.warning(traceback.format_exc())
+            finally:
+                execute("set unwindonsignal off")
+                g_free(errp)
             yield p
     finally:
         E('object_unref')(obj)
@@ -323,7 +394,9 @@ def query_device_type(devtype):
     result = {}
     result.update(value_to_dict(dc))
     result['props'] = list(dev_class_props(dc))
-    result['instance_props'] = list(object_class_instance_props(oc))
+    if not find_field(dc, 'cannot_destroy_with_object_finalize_yet') or \
+        not bool(dc['cannot_destroy_with_object_finalize_yet']):
+        result['instance_props'] = list(object_class_instance_props(oc))
     return result
 
 # The functions that will handle each type of request
@@ -343,7 +416,12 @@ def handle_requests(args):
         try:
             r = handle_request(*req)
             yield dict(request=req, result=r)
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
+            if args.catch_exceptions:
+                traceback.print_exc()
+                command_loop()
             tb = traceback.format_exc()
             yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)), traceback=tb)
 
@@ -352,7 +430,9 @@ parser = argparse.ArgumentParser(prog='dump-machine-info.py',
 parser.add_argument('qemu_binary', metavar='QEMU',
                     help='QEMU binary to run')
 parser.add_argument('-d', '--debug', dest='debug', action='store_true',
-                    help="Enable debugging messages"),
+                    help="Enable debugging messages")
+parser.add_argument('--catch-exceptions', dest='catch_exceptions', action='store_true',
+                    help="Catch exceptions and run gdb command loop")
 
 # the --machine and --device options are kept on a single array, so we
 # process in the same order they appeared:
