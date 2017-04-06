@@ -519,8 +519,12 @@ for r in handle_requests(args):
     first = False
 sys.stdout.write("\n]\n")
 
+exit = 0
 if tracebacks:
     for r in tracebacks:
         logger.info("Traceback for request %r:", r['request'])
         logger.info(r['traceback'])
-    sys.exit(1)
+    exit = 1
+
+execute('kill')
+sys.exit(exit)
