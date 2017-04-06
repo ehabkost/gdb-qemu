@@ -102,6 +102,10 @@ def type_code_name(code):
 # Helper functions to translate data from GDB
 #############################################
 
+def tolong(v):
+    """Return value as long int"""
+    return int(v.cast(T('long')))
+
 def enumerate_fields(t):
     """Enumerate fields of a struct type, recursively
 
@@ -133,11 +137,11 @@ def value_to_py(v):
     #if code == gdb.TYPE_CODE_PTR:
     #    dbg("target code: %s", type_code_name(t.target().code))
     if code == gdb.TYPE_CODE_INT:
-        return int(v)
+        return tolong(v)
     elif code == gdb.TYPE_CODE_BOOL:
         return bool(v)
     elif code == gdb.TYPE_CODE_PTR and \
-        int(v) == 0: # NULL pointer
+        tolong(v) == 0: # NULL pointer
         return None
     elif code == gdb.TYPE_CODE_PTR and \
          t.target().unqualified() == T('char'):
@@ -165,7 +169,7 @@ def value_to_dict(v):
         v = v.dereference()
 
     #dbg("value_to_dict(%r)", v)
-    #dbg("address of value: %x", int(v.address))
+    #dbg("address of value: %x", tolong(v.address))
     for f in v.type.fields():
         fv = v[f.name]
         try:
@@ -188,7 +192,7 @@ def g_free(ptr):
 
 def qtailq_foreach(head, field):
     var = head['tqh_first']
-    while int(var) != 0:
+    while tolong(var) != 0:
         yield var
         var = var[field]['tqe_next']
 
@@ -204,20 +208,20 @@ def compat_props_garray(v):
     This handles the compat_props field for QEMU v2.7.0-rc0 and newer.
     (field was changed by commit bacc344c548ce165a0001276ece56ee4b0bddae3)
     """
-    if int(v) == 0: # NULL pointer
-        return []
+    if tolong(v) == 0: # NULL pointer
+        return
 
     #dbg("garray: %s", v)
     g_array_get_element_size = E('g_array_get_element_size')
     elem_sz = g_array_get_element_size(v)
     #dbg("elem sz: %d", elem_sz)
-    count = int(v['len'])
+    count = tolong(v['len'])
     #dbg("%d elements", count)
     gptype = T('GlobalProperty').pointer()
     data = v['data']
     for i in range(count):
         addr = data + i*elem_sz
-        #dbg("addr for elem %d: %x", i, int(addr))
+        #dbg("addr for elem %d: %x", i, tolong(addr))
         gp = addr.cast(gptype.pointer()).dereference()
         yield global_prop_info(gp)
 
@@ -227,8 +231,8 @@ def compat_props_gp_array(cp):
     This handles the compat_props field for QEMU older than v2.7.0-rc0
     (field was changed by commit bacc344c548ce165a0001276ece56ee4b0bddae3)
     """
-    while int(cp) != 0 and int(cp['driver']) != 0:
-        #dbg("cp addr: %x", int(cp))
+    while tolong(cp) != 0 and tolong(cp['driver']) != 0:
+        #dbg("cp addr: %x", tolong(cp))
         yield global_prop_info(cp)
         cp += 1
 
@@ -251,12 +255,12 @@ def prop_info(prop):
     r['info'] = value_to_dict(prop['info'])
 
     defval = prop['defval']
-    if int(prop['qtype']) == int(E('QTYPE_QBOOL')):
+    if tolong(prop['qtype']) == tolong(E('QTYPE_QBOOL')):
         r['defval'] = bool(defval)
-    elif int(prop['info']['enum_table']) != 0:
-        r['defval'] = (prop['info']['enum_table'] + int(defval)).dereference().string()
-    elif int(prop['qtype']) == int(E('QTYPE_QINT')):
-        r['defval'] = int(defval)
+    elif tolong(prop['info']['enum_table']) != 0:
+        r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
+    elif tolong(prop['qtype']) == tolong(E('QTYPE_QINT')):
+        r['defval'] = tolong(defval)
     else: # default value won't have any effect
         del r['defval']
     return r
@@ -267,7 +271,7 @@ def dev_class_props(dc):
     Includes properties from parent classes, too
     """
     prop = dc['props'];
-    while int(prop) != 0 and int(prop['name']) != 0:
+    while tolong(prop) != 0 and tolong(prop['name']) != 0:
         yield prop_info(prop)
         prop += 1
 
@@ -277,7 +281,7 @@ def dev_class_props(dc):
     parent = get_parent(oc)
     devstr = E('"device"')
     parent = dynamic_cast(parent, devstr)
-    if int(parent) != 0:
+    if tolong(parent) != 0:
         parent_dc = parent.cast(T('DeviceClass').pointer())
         for p in dev_class_props(parent_dc):
             yield p
@@ -286,15 +290,15 @@ def qobject_value(qobj):
     """Convert QObject value to a Python value"""
     dbg("qobj: %r", value_to_dict(qobj))
     dbg("qobj type: %s (size: %d)" % (qobj.type, qobj.type.sizeof))
-    #execute("x /%dxb 0x%x" % (qobj.type.sizeof, int(qobj)))
-    #execute("p qstring_get_str(0x%x)" % (int(qobj)))
+    #execute("x /%dxb 0x%x" % (qobj.type.sizeof, tolong(qobj)))
+    #execute("p qstring_get_str(0x%x)" % (tolong(qobj)))
     qtype = qobj['type']
     if find_field(qtype, 'code'):
         qtype = qtype['code']
     if qtype == E('QTYPE_NONE'):
         return None
     elif qtype == E('QTYPE_QINT'):
-        return int(E('qint_get_int')(qobj.cast(T('QInt').pointer())))
+        return tolong(E('qint_get_int')(qobj.cast(T('QInt').pointer())))
     elif qtype == E('QTYPE_QSTRING'):
         return E('qstring_get_str')(qobj.cast(T('QString').pointer())).string()
     elif qtype == E('QTYPE_QFLOAT'):
@@ -324,7 +328,7 @@ def object_iter_props(obj):
             E('object_property_iter_init')(iterptr, obj)
             while True:
                 prop = E('object_property_iter_next')(iterptr)
-                if int(prop) == 0:
+                if tolong(prop) == 0:
                     break
                 yield prop
         finally:
@@ -355,14 +359,14 @@ def object_class_instance_props(oc):
                 # getting the value of a child property triggers the obj->parent != NULL assertion
                 # at object_get_canonical_path_component() and I don't know why
                 continue
-            if int(prop['get']) == 0:
+            if tolong(prop['get']) == 0:
                 # No getter function
                 continue
             execute("set unwindonsignal on")
             errp = g_new0(T('Error').pointer())
             try:
                 val = E('object_property_get_qobject')(obj, prop['name'], errp)
-                if int(errp.dereference()) == 0:
+                if tolong(errp.dereference()) == 0:
                     p['value'] = qobject_value(val)
                 else:
                     msg = E('error_get_pretty')(errp.dereference()).string()
@@ -386,7 +390,7 @@ def object_class_instance_props(oc):
 def query_machine(machine):
     """Query raw information for a machine-type name"""
     mi = E('find_machine(%s)' % (c_string(machine)))
-    if int(mi) == 0:
+    if tolong(mi) == 0:
         raise Exception("Can't find machine type %s" % (machine))
 
     mi = mi.dereference()
@@ -407,11 +411,11 @@ def query_machine(machine):
 def query_device_type(devtype):
     """Query information for a specific device type name"""
     oc = E('object_class_by_name(%s)' % (c_string(devtype)))
-    if int(oc) == 0:
+    if tolong(oc) == 0:
         raise Exception("Can't find type %s" % (devtype))
 
     dc = oc.cast(T('DeviceClass').pointer())
-    dbg("oc: 0x%x, dc: 0x%x", int(oc), int(dc))
+    dbg("oc: 0x%x, dc: 0x%x", tolong(oc), tolong(dc))
     result = {}
     result.update(value_to_dict(dc))
     result['props'] = list(dev_class_props(dc))
