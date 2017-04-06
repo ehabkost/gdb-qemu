@@ -60,24 +60,35 @@ def type_code_name(code):
 def value_to_dict(v):
     """Return dictionary containing field values from GDB value @v"""
     r = {}
-    #dbg("value_to_dict(%r)", v)
+    dbg("value_to_dict(%r)", v)
+    dbg("address of value: %x", int(v.address))
     for f in v.type.fields():
-        code = f.type.code
-        #dbg("field %s, type code: %s", f.name, type_code_name(code))
         fv = v[f.name]
+        t = fv.type.strip_typedefs()
+        code = t.code
+        dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))
+        if code == gdb.TYPE_CODE_PTR:
+            dbg("target code: %s", type_code_name(t.target().code))
         rv = None
         if code == gdb.TYPE_CODE_INT:
             rv = int(fv)
         elif code == gdb.TYPE_CODE_BOOL:
             rv = bool(fv)
-        else:
-            try:
-                rv = fv.string()
-            except:
-                pass
+        elif code == gdb.TYPE_CODE_PTR and \
+            int(fv) == 0: # NULL pointer
+            rv = None
+        elif code == gdb.TYPE_CODE_PTR and \
+             t.target().unqualified() == gdb.lookup_type('char'):
+            rv = fv.string()
+        elif code == gdb.TYPE_CODE_PTR and \
+             t.target().code == gdb.TYPE_CODE_FUNC:
 
-        if rv is not None:
-            r[f.name] = rv
+             rv = str(fv)
+        else:
+            continue
+
+        dbg("r[%r] = %r", f.name, rv)
+        r[f.name] = rv
     return r
 
 def global_prop_info(gp):
@@ -145,8 +156,57 @@ def query_machine(machine):
     result['compat_props'] = compat_props(mi)
     return result
 
+def prop_info(prop):
+    r = value_to_dict(prop.dereference())
+    r['info'] = value_to_dict(prop['info'].dereference())
+
+    defval = prop['defval']
+    if int(prop['qtype']) == int(gdb.parse_and_eval('QTYPE_QBOOL')):
+        r['defval'] = bool(defval)
+    elif int(prop['info']['enum_table']) != 0:
+        r['defval'] = (prop['info']['enum_table'] + int(defval)).dereference().string()
+    elif int(prop['qtype']) == int(gdb.parse_and_eval('QTYPE_QINT')):
+        r['defval'] = int(defval)
+    else: # default value won't have any effect
+        del r['defval']
+    return r
+
+def dev_class_props(dc):
+    prop = dc['props'];
+    while int(prop) != 0 and int(prop['name']) != 0:
+        yield prop_info(prop)
+        prop += 1
+
+    get_parent = gdb.parse_and_eval('object_class_get_parent')
+    dynamic_cast = gdb.parse_and_eval('object_class_dynamic_cast')
+    oc = dc.cast(gdb.lookup_type('ObjectClass').pointer())
+    parent = get_parent(oc)
+    devstr = gdb.parse_and_eval('"device"')
+    parent = dynamic_cast(parent, devstr)
+    if int(parent) != 0:
+        parent_dc = parent.cast(gdb.lookup_type('DeviceClass').pointer())
+        for p in dev_class_props(parent_dc):
+            yield p
+
+
+def query_device_type(devtype):
+    if require_escaping(devtype):
+        parser.error("Sorry, this device type name won't work")
+
+    oc = gdb.parse_and_eval('object_class_by_name("%s")' % (devtype))
+    if int(oc) == 0:
+        raise Exception("Can't find type %s" % (devtype))
+
+    dc = oc.cast(gdb.lookup_type('DeviceClass').pointer())
+    dbg("oc: 0x%x, dc: 0x%x", int(oc), int(dc))
+    result = {}
+    result.update(value_to_dict(dc.dereference()))
+    result['props'] = list(dev_class_props(dc))
+    return result
+
 REQ_HANDLERS = {
     'query-machine': query_machine,
+    'query-device-type': query_device_type,
 }
 
 def handle_request(reqtype, *args):
@@ -161,7 +221,8 @@ def handle_requests(args):
             r = handle_request(*req)
             yield dict(request=req, result=r)
         except Exception as e:
-            yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)))
+            tb = traceback.format_exc()
+            yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)), traceback=tb)
 
 parser = argparse.ArgumentParser(prog='dump-machine-info.py',
                                  description='Dump raw machine-type info from a QEMU binary')
@@ -171,6 +232,10 @@ parser.add_argument('--machine', '-M', metavar='MACHINE',
                     help='dump info for a machine-type',
                     action='append', type=lambda m: ('query-machine', m),
                     dest='requests', default=[])
+parser.add_argument('--device', '-D', metavar='DEVTYPE',
+                    help='dump info for a device type',
+                    action='append', type=lambda d: ('query-device-type', d),
+                    dest='requests')
 parser.add_argument('-d', '--debug', dest='debug', action='store_true',
                     help="Enable debugging messages"),
 args = parser.parse_args(args=sys.argv)
@@ -180,6 +245,7 @@ if args.debug:
     lvl = logging.DEBUG
 logging.basicConfig(stream=sys.stderr, level=lvl)
 
+dbg(gdb.__file__)
 if require_escaping(args.qemu_binary):
     parser.error("Sorry, this QEMU binary name won't work")
 if not args.requests:
