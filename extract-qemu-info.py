@@ -39,12 +39,14 @@ logger = logging.getLogger('dump-machine-info')
 dbg = logger.debug
 
 def gdb_escape(s):
+    """Escape string to use it on a gdb command"""
     invalid_chars = re.compile(r"""['"\\\s]""")
     if invalid_chars.search(s):
         raise Exception("Sorry, I don't know how to escape %r in a gdb command" % (s))
     return s
 
 def c_string(s):
+    """Return a C string literal sequence for a string"""
     # be very conservative, just in case:
     invalid_chars = re.compile(r'["\\\n]')
     if invalid_chars.search(s):
@@ -52,12 +54,13 @@ def c_string(s):
     return '"%s"' % (s)
 
 def execute(*args, **kwargs):
+    """Just a debugging wrapper for gdb.execute()"""
     dbg('executing command: %r, %r', args, kwargs)
     r = gdb.execute(*args, to_string=True, **kwargs)
     dbg('command output: %s', r)
 
 def type_code_name(code):
-    """Find type code name, just for debugging"""
+    """Find gdb type code name, just for debugging"""
     for a in dir(gdb):
         if not a.startswith('TYPE_CODE_'):
             continue
@@ -66,7 +69,11 @@ def type_code_name(code):
     return '%d' % (code)
 
 def value_to_dict(v):
-    """Return dictionary containing field values from GDB value @v"""
+    """Return dictionary containing field values from GDB value @v
+
+    Try to include all the fields whose type we know how to translate
+    to a JSON-compatible type.
+    """
     r = {}
     dbg("value_to_dict(%r)", v)
     dbg("address of value: %x", int(v.address))
@@ -93,6 +100,7 @@ def value_to_dict(v):
 
              rv = str(fv)
         else:
+            #TODO: include structs
             continue
 
         dbg("r[%r] = %r", f.name, rv)
@@ -100,11 +108,17 @@ def value_to_dict(v):
     return r
 
 def global_prop_info(gp):
+    """Return dictionary with info about a GlobalProperty"""
     return dict(driver=gp['driver'].string(),
                 property=gp['property'].string(),
                 value=gp['value'].string())
 
 def compat_props_garray(v):
+    """Return compat_props list based on a GArray field
+
+    This handles the compat_props field for QEMU v2.7.0-rc0 and newer.
+    (field was changed by commit bacc344c548ce165a0001276ece56ee4b0bddae3)
+    """
     if int(v) == 0: # NULL pointer
         return []
 
@@ -123,15 +137,19 @@ def compat_props_garray(v):
         yield global_prop_info(gp)
 
 def compat_props_gp_array(cp):
-    """Return compat_props list for GlobalProperty[] array"""
+    """Return compat_props list for GlobalProperty[] array
+
+    This handles the compat_props field for QEMU older than v2.7.0-rc0
+    (field was changed by commit bacc344c548ce165a0001276ece56ee4b0bddae3)
+    """
     while int(cp) != 0 and int(cp['driver']) != 0:
         dbg("cp addr: %x", int(cp))
         yield global_prop_info(cp)
         cp += 1
 
-def compat_props(v):
-    """Return list for items in compat_props"""
-    cp = v['compat_props']
+def compat_props(mi):
+    """Return list of compat_props items"""
+    cp = mi['compat_props']
 
     # currently we can only handle the GArray version of compat_props:
     #dbg("cp type: %s", cp.type)
@@ -143,6 +161,7 @@ def compat_props(v):
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
 def query_machine(machine):
+    """Query raw information for a machine-type name"""
     mi = gdb.parse_and_eval('find_machine(%s)' % (c_string(machine)))
     if int(mi) == 0:
         raise Exception("Can't find machine type %s" % (machine))
@@ -163,6 +182,7 @@ def query_machine(machine):
     return result
 
 def prop_info(prop):
+    """Return dictionary containing information for qdev Property struct"""
     r = value_to_dict(prop.dereference())
     r['info'] = value_to_dict(prop['info'].dereference())
 
@@ -178,6 +198,10 @@ def prop_info(prop):
     return r
 
 def dev_class_props(dc):
+    """Return list of property information for a DeviceClass
+
+    Includes properties from parent classes, too
+    """
     prop = dc['props'];
     while int(prop) != 0 and int(prop['name']) != 0:
         yield prop_info(prop)
@@ -196,6 +220,7 @@ def dev_class_props(dc):
 
 
 def query_device_type(devtype):
+    """Query information for a specific device type name"""
     oc = gdb.parse_and_eval('object_class_by_name(%s)' % (c_string(devtype)))
     if int(oc) == 0:
         raise Exception("Can't find type %s" % (devtype))
@@ -207,6 +232,7 @@ def query_device_type(devtype):
     result['props'] = list(dev_class_props(dc))
     return result
 
+# The functions that will handle each type of request
 REQ_HANDLERS = {
     'query-machine': query_machine,
     'query-device-type': query_device_type,
@@ -231,6 +257,11 @@ parser = argparse.ArgumentParser(prog='dump-machine-info.py',
                                  description='Dump raw machine-type info from a QEMU binary')
 parser.add_argument('qemu_binary', metavar='QEMU',
                     help='QEMU binary to run')
+parser.add_argument('-d', '--debug', dest='debug', action='store_true',
+                    help="Enable debugging messages"),
+
+# the --machine and --device options are kept on a single array, so we
+# process in the same order they appeared:
 parser.add_argument('--machine', '-M', metavar='MACHINE',
                     help='dump info for a machine-type',
                     action='append', type=lambda m: ('query-machine', m),
@@ -239,8 +270,7 @@ parser.add_argument('--device', '-D', metavar='DEVTYPE',
                     help='dump info for a device type',
                     action='append', type=lambda d: ('query-device-type', d),
                     dest='requests')
-parser.add_argument('-d', '--debug', dest='debug', action='store_true',
-                    help="Enable debugging messages"),
+
 args = parser.parse_args(args=sys.argv)
 
 lvl = logging.INFO
