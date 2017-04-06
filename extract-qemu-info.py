@@ -356,6 +356,9 @@ def object_class_instance_props(oc):
                 # getting the value of a child property triggers the obj->parent != NULL assertion
                 # at object_get_canonical_path_component() and I don't know why
                 continue
+            if int(prop['get']) == 0:
+                # No getter function
+                continue
             execute("set unwindonsignal on")
             errp = g_new0(T('Error').pointer())
             try:
