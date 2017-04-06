@@ -49,6 +49,7 @@ def execute(*args, **kwargs):
     dbg('command output: %s', r)
 
 def type_code_name(code):
+    """Find type code name, just for debugging"""
     for a in dir(gdb):
         if not a.startswith('TYPE_CODE_'):
             continue
