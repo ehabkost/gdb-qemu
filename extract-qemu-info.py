@@ -312,4 +312,11 @@ if fm.hit_count < 1:
 # make sure it's safe to call find_machine() later:
 fm.enabled = False
 
-json.dump(list(handle_requests(args)), sys.stdout)
+sys.stdout.write("[")
+first = True
+for r in handle_requests(args):
+    if not first:
+        sys.stdout.write(",\n")
+    json.dump(r, sys.stdout)
+    first = False
+sys.stdout.write("\n]\n")
