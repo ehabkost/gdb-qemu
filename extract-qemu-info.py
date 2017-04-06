@@ -387,11 +387,11 @@ def object_class_instance_props(oc):
 def find_machine(name):
     """Find machine class"""
     try:
-        fn = E('find_machine')
+        return E('find_machine(%s)' % c_string(name))
     except:
-        fn = None
-    if fn:
-        return fn(E(c_string(name)))
+        pass
+
+    dbg("will look for machine manually:")
 
     # In case the QEMU binary has find_machine() inlined, we have
     # to look for the machine class/struct ourselves
@@ -399,10 +399,20 @@ def find_machine(name):
     el = machines
     while tolong(el):
         mc = el['data'].cast(T('MachineClass').pointer())
+        dbg("looking at mc: %s", mc)
         if mc['name'].string() == name or \
            tolong(mc['alias']) != 0 and mc['alias'].string() == name:
            return mc
         el = el['next']
+
+    # if QOM lookup failed, look for the "first_machine" global,
+    # for the linked list:
+    m = E('first_machine')
+    while tolong(m):
+        if m['name'].string() == name or \
+           tolong(m['alias']) != 0 and m['alias'].string() == name:
+           return m
+        m = m['next']
 
 ########################
 # Actual query functions
