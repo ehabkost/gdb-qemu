@@ -75,6 +75,10 @@ def value_to_dict(v):
     to a JSON-compatible type.
     """
     r = {}
+    # In case we have a pointer, dereference it automatically to
+    # make this helper easier to use
+    if v.type.code == gdb.TYPE_CODE_PTR:
+        v = v.dereference()
     dbg("value_to_dict(%r)", v)
     dbg("address of value: %x", int(v.address))
     for f in v.type.fields():
