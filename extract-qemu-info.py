@@ -408,8 +408,11 @@ def find_machine(name):
 
     # if QOM lookup failed, look for the "first_machine" global,
     # for the linked list:
-    m = E('first_machine')
-    while tolong(m):
+    try:
+        m = E('first_machine')
+    except:
+        m = None
+    while m and tolong(m):
         if m['name'].string() == name or \
            tolong(m['alias']) != 0 and m['alias'].string() == name:
            return m
