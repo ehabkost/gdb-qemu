@@ -62,22 +62,32 @@ def value_to_dict(v):
     r = {}
     #dbg("value_to_dict(%r)", v)
     for f in v.type.fields():
-        code = f.type.code
-        #dbg("field %s, type code: %s", f.name, type_code_name(code))
+        t = f.type.strip_typedefs()
+        code = t.code
+        dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))
+        if code == gdb.TYPE_CODE_PTR:
+            dbg("target code: %s", type_code_name(t.target().code))
         fv = v[f.name]
         rv = None
         if code == gdb.TYPE_CODE_INT:
             rv = int(fv)
         elif code == gdb.TYPE_CODE_BOOL:
             rv = bool(fv)
-        else:
-            try:
-                rv = fv.string()
-            except:
-                pass
+        elif code == gdb.TYPE_CODE_PTR and \
+            int(fv) == 0: # NULL pointer
+            rv = None
+        elif code == gdb.TYPE_CODE_PTR and \
+             t.target().unqualified() == gdb.lookup_type('char'):
+            rv = fv.string()
+        elif code == gdb.TYPE_CODE_PTR and \
+             t.target().code == gdb.TYPE_CODE_FUNC:
 
-        if rv is not None:
-            r[f.name] = rv
+             rv = str(fv)
+        else:
+            continue
+
+        dbg("r[%r] = %r", f.name, rv)
+        r[f.name] = rv
     return r
 
 def global_prop_info(gp):
@@ -145,8 +155,30 @@ def query_machine(machine):
     result['compat_props'] = compat_props(mi)
     return result
 
+def dev_class_props(dc):
+    prop = dc['props'];
+    while int(prop) != 0 and int(prop['name']) != 0:
+        yield value_to_dict(prop.dereference())
+        prop += 1
+    get_parent = gdb.parse_and_eval('object_class_get_parent')
+    dynamic_cast = gdb.parse_and_eval('object_class_dynamic_cast')
+    oc = 
+    parent = gdb.parse_and_eval()
+
+def query_device_type(devtype):
+    if require_escaping(devtype):
+        parser.error("Sorry, this device type name won't work")
+
+    oc = gdb.parse_and_eval('object_class_by_name("%s")' % (devtype))
+    dc = oc.cast(gdb.lookup_type('DeviceClass').pointer())
+    dbg("oc: 0x%x, dc: 0x%x", int(oc), int(dc))
+    result = {}
+    result.update(value_to_dict(dc.dereference()))
+    return result
+
 REQ_HANDLERS = {
     'query-machine': query_machine,
+    'query-device-type': query_device_type,
 }
 
 def handle_request(reqtype, *args):
@@ -171,6 +203,10 @@ parser.add_argument('--machine', '-M', metavar='MACHINE',
                     help='dump info for a machine-type',
                     action='append', type=lambda m: ('query-machine', m),
                     dest='requests', default=[])
+parser.add_argument('--device', '-D', metavar='DEVTYPE',
+                    help='dump info for a device type',
+                    action='append', type=lambda d: ('query-device-type', d),
+                    dest='requests')
 parser.add_argument('-d', '--debug', dest='debug', action='store_true',
                     help="Enable debugging messages"),
 args = parser.parse_args(args=sys.argv)
@@ -180,6 +216,7 @@ if args.debug:
     lvl = logging.DEBUG
 logging.basicConfig(stream=sys.stderr, level=lvl)
 
+dbg(gdb.__file__)
 if require_escaping(args.qemu_binary):
     parser.error("Sorry, this QEMU binary name won't work")
 if not args.requests:
