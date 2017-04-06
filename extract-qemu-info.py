@@ -282,8 +282,6 @@ if args.debug:
     lvl = logging.DEBUG
 logging.basicConfig(stream=sys.stderr, level=lvl)
 
-dbg(gdb.__file__)
-
 if not args.requests:
     parser.error("No action was requested")
 
