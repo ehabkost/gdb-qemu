@@ -21,18 +21,14 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
-import sys, argparse, logging, subprocess, json, os
+import sys, argparse, logging, subprocess, json, os, platform, socket
 import qmp
 
 MYDIR = os.path.dirname(__file__)
 GDB_EXTRACTOR = os.path.join(MYDIR, 'extract-qemu-info.py')
 
 logger = logging.getLogger('compat-checker')
-
-class QEMUBinaryInfo:
-    def __init__(self, binary=None, datafile=None):
-        self.binary = binary
-        self.datafile = datafile
+dbg = logger.debug
 
 def run_gdb_extractor(binary, machines):
     args = ['gdb', '-q', '-P', GDB_EXTRACTOR]
@@ -43,6 +39,51 @@ def run_gdb_extractor(binary, machines):
     r = json.load(proc.stdout)
     proc.wait()
     return r
+
+class QEMUBinaryInfo:
+    def __init__(self, binary=None, datafile=None):
+        self.binary = binary
+        self.datafile = datafile
+
+    def get_stdout(self, *args):
+        """Helper to simply run QEMU and get stdout output"""
+        try:
+            return subprocess.Popen([self.binary] + list(args),
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT).communicate()[0]
+        except:
+            return None
+
+    def get_rpm_package(self):
+        # use shell to ensure we will just get an error message if RPM
+        # is not available
+        return subprocess.Popen(['sh', '-c', "rpm -qf %s" % (self.binary)],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT).communicate()[0]
+
+    def append_raw_item(self, reqtype, result, args=[]):
+        self.raw_data.append(dict(request=[reqtype] + list(args), result=result))
+
+    def extract_binary_data(self, args):
+        self.raw_data = []
+        self.append_raw_item('version', {'help': self.get_stdout('-version'),
+                                         'rpm-qf': self.get_rpm_package()})
+        self.append_raw_item('help', self.get_stdout('-help'))
+        self.append_raw_item('device-help', self.get_stdout('-device', 'help'))
+        self.append_raw_item('machine-help', self.get_stdout('-machine', 'help'))
+        self.append_raw_item('cpu-help', self.get_stdout('-cpu', 'help'))
+        self.append_raw_item('hostname', {'platform.node': platform.node(),
+                                          'gethostname': socket.gethostname()})
+        self.raw_data.extend(run_gdb_extractor(self.binary, args.machine))
+
+    def load_data_file(self):
+        self.raw_data = json.load(open(self.datafile))
+
+    def load_data(self, args):
+        if self.binary:
+            self.extract_binary_data(args)
+        else:
+            self.load_data_file()
 
 def main():
     parser = argparse.ArgumentParser(
@@ -77,10 +118,9 @@ def main():
         return 1
 
     for b in binaries:
-        if b.binary:
-            b.raw_data = run_gdb_extractor(q, args.machine)
-        else:
-            b.raw_data = json.load(open(b.datafile))
+        b.load_data(args)
+
+    dbg("loaded data for all QEMU binaries")
 
     if args.dump_file:
         json.dump(binaries[0].raw_data, open(args.dump_file, 'w'), indent=2)
