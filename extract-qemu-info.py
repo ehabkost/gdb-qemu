@@ -116,7 +116,7 @@ def compat_props_garray(v):
 
 def compat_props_gp_array(cp):
     """Return compat_props list for GlobalProperty[] array"""
-    while int(cp['driver']) != 0:
+    while int(cp) != 0 and int(cp['driver']) != 0:
         dbg("cp addr: %x", int(cp))
         yield global_prop_info(cp)
         cp += 1
