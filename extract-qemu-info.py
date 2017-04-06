@@ -123,22 +123,67 @@ def compat_props(v):
     else:
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
+def query_machine(machine):
+    if require_escaping(machine):
+        parser.error("Sorry, this machine-type name won't work")
+    mi = gdb.parse_and_eval('find_machine("%s")' % (machine))
+    if int(mi) == 0:
+        raise Exception("Can't find machine type %s" % (machine))
+
+    mi = mi.dereference()
+    dbg('mi: %s', mi)
+
+    dbg('mi type: %s', mi.type)
+    dbg("mi name: %s", mi['name'].string())
+    if mi['alias']:
+        dbg("mi alias: %s", mi['alias'].string())
+
+    assert mi['name'].string() == machine or mi['alias'].string() == machine
+
+    result = {}
+    result.update(value_to_dict(mi))
+    result['compat_props'] = compat_props(mi)
+    return result
+
+REQ_HANDLERS = {
+    'query-machine': query_machine,
+}
+
+def handle_request(reqtype, *args):
+    handler = REQ_HANDLERS.get(reqtype)
+    if handler is None:
+        raise Exception("invalid request: %s" % (reqtype))
+    return handler(*args)
+
+def handle_requests(args):
+    for req in args.requests:
+        try:
+            r = handle_request(*req)
+            yield dict(request=req, result=r)
+        except Exception as e:
+            yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)))
 
 parser = argparse.ArgumentParser(prog='dump-machine-info.py',
                                  description='Dump raw machine-type info from a QEMU binary')
 parser.add_argument('qemu_binary', metavar='QEMU',
                     help='QEMU binary to run')
-parser.add_argument('machine', metavar='MACHINE',
-                    help='machine-type to dump')
-
+parser.add_argument('--machine', '-M', metavar='MACHINE',
+                    help='dump info for a machine-type',
+                    action='append', type=lambda m: ('query-machine', m),
+                    dest='requests', default=[])
+parser.add_argument('-d', '--debug', dest='debug', action='store_true',
+                    help="Enable debugging messages"),
 args = parser.parse_args(args=sys.argv)
 
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+lvl = logging.INFO
+if args.debug:
+    lvl = logging.DEBUG
+logging.basicConfig(stream=sys.stderr, level=lvl)
 
 if require_escaping(args.qemu_binary):
     parser.error("Sorry, this QEMU binary name won't work")
-if require_escaping(args.machine):
-    parser.error("Sorry, this machine-type name won't work")
+if not args.requests:
+    parser.error("No action was requested")
 
 # basic setup, to make GDB behave more predictably:
 execute('set pagination off')
@@ -159,24 +204,7 @@ if fm.hit_count < 1:
     logger.error("Didn't hit the find_machine breakpoint :(")
     sys.exit(1)
 
+# make sure it's safe to call find_machine() later:
 fm.enabled = False
-mi = gdb.parse_and_eval('find_machine("%s")' % (args.machine))
-if int(mi) == 0:
-    logger.error("Can't find machine type %s", args.machine)
-    sys.exit(1)
 
-mi = mi.dereference()
-dbg('mi: %s', mi)
-
-dbg('mi type: %s', mi.type)
-dbg("mi name: %s", mi['name'].string())
-if mi['alias']:
-    dbg("mi alias: %s", mi['alias'].string())
-
-assert mi['name'].string() == args.machine or mi['alias'].string() == args.machine
-
-result = {}
-result.update(value_to_dict(mi))
-result['compat_props'] = compat_props(mi)
-
-print(json.dumps(result))
+json.dump(list(handle_requests(args)), sys.stdout)
