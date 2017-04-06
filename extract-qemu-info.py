@@ -38,6 +38,11 @@ import re
 logger = logging.getLogger('dump-machine-info')
 dbg = logger.debug
 
+
+##########################
+# Generic helper functions
+##########################
+
 def E(expr):
     """Shortcut to gdb.parse_and_eval()"""
     return gdb.parse_and_eval(expr)
@@ -46,8 +51,8 @@ def T(name):
     """Shortcuto to gdb.lookup_type()"""
     return gdb.lookup_type(name)
 
-
 def command_loop():
+    """Run a read/execute command-loop, for debugging"""
     prev = None
     while True:
         cmd = input("gdb> ")
@@ -92,6 +97,11 @@ def type_code_name(code):
         if code == getattr(gdb, a):
             return a
     return '%d' % (code)
+
+
+#############################################
+# Helper functions to translate data from GDB
+#############################################
 
 def enumerate_fields(t):
     """Enumerate fields of a struct type, recursively
@@ -166,6 +176,23 @@ def value_to_dict(v):
             pass
     return r
 
+
+##############################################
+# Helper functions to translate data from QEMU
+##############################################
+
+def g_new0(t):
+    return E('g_malloc0(%d)' % (t.sizeof)).cast(t.pointer())
+
+def g_free(ptr):
+    return E('g_free')(ptr)
+
+def qtailq_foreach(head, field):
+    var = head['tqh_first']
+    while int(var) != 0:
+        yield var
+        var = var[field]['tqe_next']
+
 def global_prop_info(gp):
     """Return dictionary with info about a GlobalProperty"""
     r = value_to_dict(gp)
@@ -219,27 +246,6 @@ def compat_props(mi):
     else:
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
-def query_machine(machine):
-    """Query raw information for a machine-type name"""
-    mi = E('find_machine(%s)' % (c_string(machine)))
-    if int(mi) == 0:
-        raise Exception("Can't find machine type %s" % (machine))
-
-    mi = mi.dereference()
-    dbg('mi: %s', mi)
-
-    dbg('mi type: %s', mi.type)
-    dbg("mi name: %s", mi['name'].string())
-    if mi['alias']:
-        dbg("mi alias: %s", mi['alias'].string())
-
-    assert mi['name'].string() == machine or mi['alias'].string() == machine
-
-    result = {}
-    result.update(value_to_dict(mi))
-    result['compat_props'] = compat_props(mi)
-    return result
-
 def prop_info(prop):
     """Return dictionary containing information for qdev Property struct"""
     r = value_to_dict(prop)
@@ -276,18 +282,6 @@ def dev_class_props(dc):
         parent_dc = parent.cast(T('DeviceClass').pointer())
         for p in dev_class_props(parent_dc):
             yield p
-
-def g_new0(t):
-    return E('g_malloc0(%d)' % (t.sizeof)).cast(t.pointer())
-
-def g_free(ptr):
-    return E('g_free')(ptr)
-
-def qtailq_foreach(head, field):
-    var = head['tqh_first']
-    while int(var) != 0:
-        yield var
-        var = var[field]['tqe_next']
 
 def qobject_value(qobj):
     """Convert QObject value to a Python value"""
@@ -383,6 +377,31 @@ def object_class_instance_props(oc):
     finally:
         E('object_unref')(obj)
 
+########################
+# Actual query functions
+########################
+
+def query_machine(machine):
+    """Query raw information for a machine-type name"""
+    mi = E('find_machine(%s)' % (c_string(machine)))
+    if int(mi) == 0:
+        raise Exception("Can't find machine type %s" % (machine))
+
+    mi = mi.dereference()
+    dbg('mi: %s', mi)
+
+    dbg('mi type: %s', mi.type)
+    dbg("mi name: %s", mi['name'].string())
+    if mi['alias']:
+        dbg("mi alias: %s", mi['alias'].string())
+
+    assert mi['name'].string() == machine or mi['alias'].string() == machine
+
+    result = {}
+    result.update(value_to_dict(mi))
+    result['compat_props'] = compat_props(mi)
+    return result
+
 def query_device_type(devtype):
     """Query information for a specific device type name"""
     oc = E('object_class_by_name(%s)' % (c_string(devtype)))
@@ -424,6 +443,11 @@ def handle_requests(args):
                 command_loop()
             tb = traceback.format_exc()
             yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)), traceback=tb)
+
+
+###########
+# MAIN CODE
+###########
 
 parser = argparse.ArgumentParser(prog='dump-machine-info.py',
                                  description='Dump raw machine-type info from a QEMU binary')
