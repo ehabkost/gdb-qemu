@@ -289,7 +289,8 @@ if not args.requests:
 execute('set pagination off')
 
 execute('file %s' % (gdb_escape(args.qemu_binary)))
-execute('set args -S -machine none -nographic')
+execute('set args -S -M will_never_run -nographic')
+
 # find_machine() exists since the -M optino was added, so it
 # is a safe place where we know the machine type tables are available
 fm = gdb.Breakpoint('find_machine', internal=True)
@@ -299,9 +300,6 @@ fm.silent = True
 # breakpoint fails:
 ml = gdb.Breakpoint('main_loop', internal=True)
 ml.silent = True
-
-if not fm.location or not ml.location:
-    raise Exception("Couldn't set breakpoints. Maybe debuginfo is missing?")
 
 execute('run')
 
@@ -316,7 +314,8 @@ sys.stdout.write("[")
 first = True
 for r in handle_requests(args):
     if not first:
-        sys.stdout.write(",\n")
+        sys.stdout.write(",")
+    sys.stdout.write("\n  ")
     json.dump(r, sys.stdout)
     first = False
 sys.stdout.write("\n]\n")
