@@ -159,9 +159,14 @@ if fm.hit_count < 1:
     sys.exit(1)
 
 fm.enabled = False
-mi = gdb.parse_and_eval('find_machine("%s")' % (args.machine)).dereference()
+mi = gdb.parse_and_eval('find_machine("%s")' % (args.machine))
+if int(mi) == 0:
+    logger.error("Can't find machine type %s", args.machine)
+    sys.exit(1)
 
+mi = mi.dereference()
 dbg('mi: %s', mi)
+
 dbg('mi type: %s', mi.type)
 dbg("mi name: %s", mi['name'].string())
 if mi['alias']:
