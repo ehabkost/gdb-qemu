@@ -383,14 +383,34 @@ def object_class_instance_props(oc):
     finally:
         E('object_unref')(obj)
 
+def find_machine(name):
+    """Find machine class"""
+    try:
+        fn = E('find_machine')
+    except:
+        fn = None
+    if fn:
+        return fn(E(c_string(name)))
+
+    # In case the QEMU binary has find_machine() inlined, we have
+    # to look for the machine class/struct ourselves
+    machines = E('object_class_get_list')(E(c_string("machine")), 0)
+    el = machines
+    while tolong(el):
+        mc = el['data'].cast(T('MachineClass').pointer())
+        if mc['name'].string() == name or \
+           tolong(mc['alias']) != 0 and mc['alias'].string() == name:
+           return mc
+        el = el['next']
+
 ########################
 # Actual query functions
 ########################
 
 def query_machine(machine):
     """Query raw information for a machine-type name"""
-    mi = E('find_machine(%s)' % (c_string(machine)))
-    if tolong(mi) == 0:
+    mi = find_machine(machine)
+    if mi is None or tolong(mi) == 0:
         raise Exception("Can't find machine type %s" % (machine))
 
     mi = mi.dereference()
