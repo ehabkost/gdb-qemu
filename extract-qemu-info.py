@@ -22,9 +22,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
 
-# PYTHON VERSION:
-# This script has been tested only with a GDB binary that
-# uses the Python 3 interpreter
+# Note about Python version:
+# This script should work on both Python 3 and Python 2.7 interpreters.
+# Unfortunately we don't have a choice, as it depends on the Python version
+# against which GDB has been compiled.
 
 import gdb
 import sys
