@@ -68,6 +68,19 @@ def type_code_name(code):
             return a
     return '%d' % (code)
 
+def enumerate_fields(t):
+    """Enumerate fields of a struct type, recursively
+
+    Generates (bitpos, name, field) tuples.
+    """
+    t = t.strip_typedefs()
+    assert t.code == gdb.TYPE_CODE_STRUCT
+    for f in t.fields():
+        yield (f.bitpos, f.name, f)
+        if f.type and f.type.strip_typedefs().code == gdb.TYPE_CODE_STRUCT:
+            for bitpos, name, sf in enumerate_fields(f.type.strip_typedefs()):
+                yield (f.bitpos + bitpos, '%s.%s' % (f.name, sf.name), sf)
+
 def value_to_dict(v):
     """Return dictionary containing field values from GDB value @v
 
@@ -79,15 +92,17 @@ def value_to_dict(v):
     # make this helper easier to use
     if v.type.code == gdb.TYPE_CODE_PTR:
         v = v.dereference()
-    dbg("value_to_dict(%r)", v)
-    dbg("address of value: %x", int(v.address))
+
+    #dbg("value_to_dict(%r)", v)
+    #dbg("address of value: %x", int(v.address))
     for f in v.type.fields():
         fv = v[f.name]
         t = fv.type.strip_typedefs()
         code = t.code
-        dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))
+        #dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))
         if code == gdb.TYPE_CODE_PTR:
-            dbg("target code: %s", type_code_name(t.target().code))
+            #dbg("target code: %s", type_code_name(t.target().code))
+            pass
         rv = None
         if code == gdb.TYPE_CODE_INT:
             rv = int(fv)
@@ -103,19 +118,20 @@ def value_to_dict(v):
              t.target().code == gdb.TYPE_CODE_FUNC:
 
              rv = str(fv)
+        elif code == gdb.TYPE_CODE_STRUCT:
+            rv = value_to_dict(fv)
         else:
-            #TODO: include structs
             continue
 
-        dbg("r[%r] = %r", f.name, rv)
+        #dbg("r[%r] = %r", f.name, rv)
         r[f.name] = rv
     return r
 
 def global_prop_info(gp):
     """Return dictionary with info about a GlobalProperty"""
-    return dict(driver=gp['driver'].string(),
-                property=gp['property'].string(),
-                value=gp['value'].string())
+    r = value_to_dict(gp)
+    del r['next'] # no need to return the linked-list field
+    return r
 
 def compat_props_garray(v):
     """Return compat_props list based on a GArray field
@@ -147,7 +163,7 @@ def compat_props_gp_array(cp):
     (field was changed by commit bacc344c548ce165a0001276ece56ee4b0bddae3)
     """
     while int(cp) != 0 and int(cp['driver']) != 0:
-        dbg("cp addr: %x", int(cp))
+        #dbg("cp addr: %x", int(cp))
         yield global_prop_info(cp)
         cp += 1
 
@@ -187,8 +203,8 @@ def query_machine(machine):
 
 def prop_info(prop):
     """Return dictionary containing information for qdev Property struct"""
-    r = value_to_dict(prop.dereference())
-    r['info'] = value_to_dict(prop['info'].dereference())
+    r = value_to_dict(prop)
+    r['info'] = value_to_dict(prop['info'])
 
     defval = prop['defval']
     if int(prop['qtype']) == int(gdb.parse_and_eval('QTYPE_QBOOL')):
@@ -232,14 +248,14 @@ def query_device_type(devtype):
     dc = oc.cast(gdb.lookup_type('DeviceClass').pointer())
     dbg("oc: 0x%x, dc: 0x%x", int(oc), int(dc))
     result = {}
-    result.update(value_to_dict(dc.dereference()))
+    result.update(value_to_dict(dc))
     result['props'] = list(dev_class_props(dc))
     return result
 
 # The functions that will handle each type of request
 REQ_HANDLERS = {
-    'query-machine': query_machine,
-    'query-device-type': query_device_type,
+    'machine': query_machine,
+    'device-type': query_device_type,
 }
 
 def handle_request(reqtype, *args):
@@ -268,11 +284,11 @@ parser.add_argument('-d', '--debug', dest='debug', action='store_true',
 # process in the same order they appeared:
 parser.add_argument('--machine', '-M', metavar='MACHINE',
                     help='dump info for a machine-type',
-                    action='append', type=lambda m: ('query-machine', m),
+                    action='append', type=lambda m: ('machine', m),
                     dest='requests', default=[])
 parser.add_argument('--device', '-D', metavar='DEVTYPE',
                     help='dump info for a device type',
-                    action='append', type=lambda d: ('query-device-type', d),
+                    action='append', type=lambda d: ('device-type', d),
                     dest='requests')
 
 args = parser.parse_args(args=sys.argv)
@@ -312,10 +328,19 @@ fm.enabled = False
 
 sys.stdout.write("[")
 first = True
+tracebacks = []
 for r in handle_requests(args):
     if not first:
         sys.stdout.write(",")
     sys.stdout.write("\n  ")
     json.dump(r, sys.stdout)
+    if r.get('traceback'):
+        tracebacks.append(r)
     first = False
 sys.stdout.write("\n]\n")
+
+if tracebacks:
+    for r in tracebacks:
+        logger.info("Traceback for request %r:", r['request'])
+        logger.info(r['traceback'])
+    sys.exit(1)
