@@ -293,10 +293,15 @@ execute('set args -S -machine none -nographic')
 # find_machine() exists since the -M optino was added, so it
 # is a safe place where we know the machine type tables are available
 fm = gdb.Breakpoint('find_machine', internal=True)
+fm.silent = True
 
 # just to make sure we won't continue running QEMU if the find_machine
 # breakpoint fails:
 ml = gdb.Breakpoint('main_loop', internal=True)
+ml.silent = True
+
+if not fm.location or not ml.location:
+    raise Exception("Couldn't set breakpoints. Maybe debuginfo is missing?")
 
 execute('run')
 
