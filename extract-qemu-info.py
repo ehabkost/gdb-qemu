@@ -528,9 +528,10 @@ def query_device_type(devtype):
     result = {}
     result.update(value_to_dict(dc))
     result['props'] = list(dev_class_props(dc))
-    if devtype not in UNSAFE_DEVS and \
-        not (find_field(dc, 'cannot_destroy_with_object_finalize_yet') and \
-             bool(dc['cannot_destroy_with_object_finalize_yet'])):
+    # note that we ignore cannot_destroy_with_object_finalize_yet, because
+    # the risk is worth it: we can query all *-x86_64-cpu classes this way.
+    # if we find other devices that crash, we can add them to UNSAFE_DEVS
+    if devtype not in UNSAFE_DEVS:
         result['instance_props'] = list(object_class_instance_props(oc))
     return result
 
