@@ -139,10 +139,19 @@ class QEMUBinaryInfo:
         else:
             self.load_data_file()
 
-    def get_machine(self, machine):
+    def list_requests(self, reqtype):
         for i in self.raw_data:
-            if i['request'] == ['machine', machine]:
-                return i['result']
+            if i['request'][0] == reqtype:
+                yield i
+
+    def get_machine(self, machine):
+        for m in self.list_requests('machine'):
+            if m['request'][1] == machine:
+                return m['result']
+
+    def available_machines(self):
+        for m in self.list_requests('machine'):
+            yield m['request'][1]
 
     def __str__(self):
         if self.datafile:
@@ -177,6 +186,16 @@ def compare_machine(b1, b2, machine):
                 yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, p, d)
             elif v1 != v2:
                 yield ERROR, "difference at %s.%s (%r != %r)" % (d, p, v1, v2)
+
+def compare_binaries(b1, b2, args):
+    machines = args.machines
+    if not machines:
+        machines = set(b1.available_machines())
+        machines.intersection_update(b2.available_machines())
+    for m in machines:
+        dbg("will compare machine %s in binaries: %s and %s", m, b1, b2)
+        for error in compare_machine(b1, b2, m):
+            yield error
 
 def main():
     parser = argparse.ArgumentParser(
@@ -223,9 +242,8 @@ def main():
         json.dump(binaries[0].raw_data, open(args.dump_file, 'w'), indent=2)
 
     for i in range(1, len(binaries)):
-        for m in args.machines:
-            for lvl,msg in compare_machine(binaries[0], binaries[1], m):
-                logger.log(lvl, msg)
+        for lvl,msg in compare_binaries(binaries[0], binaries[1], args):
+            logger.log(lvl, msg)
 
 if __name__ == '__main__':
     sys.exit(main())
