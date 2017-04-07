@@ -159,16 +159,8 @@ class QEMUBinaryInfo:
         else:
             return 'binary %s' % (self.binary)
 
-def compare_machine(b1, b2, machine):
-    m1 = b1.get_machine(machine)
-    m2 = b2.get_machine(machine)
-    if m1 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b1, machine))
-    if m2 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b2, machine))
-    #FIXME: proper error message
-    assert m1 is not None
-    assert m2 is not None
+
+def compare_machine_compat_props(b1, b2, machine, m1, m2):
     d1 = {}
     d2 = {}
     apply_compat_props(d1, m1['compat_props'])
@@ -181,11 +173,24 @@ def compare_machine(b1, b2, machine):
             v1 = p1.get(p)
             v2 = p2.get(p)
             if v1 is None:
-                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b1, p, d)
+                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b1, d, p)
             elif v2 is None:
-                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, p, d)
+                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, d, p)
             elif v1 != v2:
-                yield ERROR, "difference at %s.%s (%r != %r)" % (d, p, v1, v2)
+                yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
+            else:
+                yield DEBUG, "machine %s: %s.%s is OK" % (machine, d, p)
+
+def compare_machine(b1, b2, machine):
+    m1 = b1.get_machine(machine)
+    m2 = b2.get_machine(machine)
+    if m1 is None:
+        raise Exception("%s doesn't have info about machine %s" % (b1, machine))
+    if m2 is None:
+        raise Exception("%s doesn't have info about machine %s" % (b2, machine))
+
+    for e in compare_machine_compat_props(b1, b2, machine, m1, m2):
+        yield e
 
 def compare_binaries(b1, b2, args):
     machines = args.machines
