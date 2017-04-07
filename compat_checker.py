@@ -32,15 +32,8 @@ GDB_EXTRACTOR = os.path.join(MYDIR, 'extract-qemu-info.py')
 logger = logging.getLogger('compat-checker')
 dbg = logger.debug
 
-def run_gdb_extractor(binary, machines):
-    args = ['gdb', '-q', '-P', GDB_EXTRACTOR]
-    for m in machines:
-        args.extend(['-M', m])
-    args.append(binary)
-    proc = subprocess.Popen(args, stdout=subprocess.PIPE)
-    r = json.load(proc.stdout)
-    proc.wait()
-    return r
+# devices that can make gdb crash if querying instance properties:
+UNSAFE_DEVICES = set(['i440FX-pcihost', 'pc-dimm', 'q35-pcihost'])
 
 def apply_compat_props(d, compat_props):
     """Apply a list of compat_props to a d[driver][property] dictionary"""
@@ -54,6 +47,30 @@ class QEMUBinaryInfo:
         self._process = None
         self._tmpdir = None
         self._qmp = None
+        self.keep_tmpdata = False
+
+    def run_gdb_extractor(self, args, machines, devices=[]):
+        outfile = os.path.join(self.tmpdir(), 'gdb-extractor.json')
+        cmd = ['gdb', '-q', '-P', GDB_EXTRACTOR]
+        cmd.extend(['-o', outfile])
+        for m in machines:
+            cmd.extend(['-M', m])
+        for d in devices:
+            cmd.extend(['-D', d])
+            if d in UNSAFE_DEVICES:
+                cmd.extend(['--unsafe-device', d])
+        if args.debug:
+            cmd.append('-d')
+        cmd.append(self.binary)
+        subprocess.call(cmd)
+        try:
+            r = json.load(open(outfile))
+        except:
+            logger.error("Error loading JSON")
+            logger.error("tmp data kept at: %s", outfile)
+            self.keep_tmpdata = True
+            raise
+        return r
 
     def get_stdout(self, *args):
         """Helper to simply run QEMU and get stdout output"""
@@ -71,10 +88,14 @@ class QEMUBinaryInfo:
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT).communicate()[0]
 
+    def tmpdir(self):
+        if not self._tmpdir:
+            self._tmpdir = tempfile.mkdtemp()
+        return self._tmpdir
+
     def open_qmp(self):
         assert self.binary
-        self._tmpdir = tempfile.mkdtemp()
-        sockfile = os.path.join(self._tmpdir, 'monitor-sock')
+        sockfile = os.path.join(self.tmpdir(), 'monitor-sock')
         self._qmp = qmp.QEMUMonitorProtocol(sockfile, server=True)
         args = [self.binary, '-S', '-M', 'none', '-display', 'none', '-qmp', 'unix:%s' %(sockfile)]
         self._process = subprocess.Popen(args, shell=False)
@@ -83,14 +104,14 @@ class QEMUBinaryInfo:
 
     def terminate(self):
         if self._qmp:
-            self._qmp.command('quit')
+            self._qmp.cmd('quit')
             self._qmp.close()
             self._qmp = None
         if self._process:
             self._process.terminate()
             self._process.wait()
             self._process = None
-        if self._tmpdir:
+        if self._tmpdir and not self.keep_tmpdata:
             shutil.rmtree(self._tmpdir)
             self._tmpdir = None
 
@@ -125,10 +146,15 @@ class QEMUBinaryInfo:
         self.qmp_info = self.query_qmp_info()
         self.append_raw_item('qmp-info', self.qmp_info)
         if not args.machines:
-            machines = [m['name'] for m in self.qmp_info['machines']]
+            machines = sorted([m['name'] for m in self.qmp_info['machines']])
         else:
             machines = args.machines
-        self.raw_data.extend(run_gdb_extractor(self.binary, machines))
+        devices = []
+        if args.all_devices:
+            devices = sorted([d['name'] for d in self.qmp_info['devices']])
+        elif args.devices:
+            devices = args.devices
+        self.raw_data.extend(self.run_gdb_extractor(args, machines, devices))
 
     def load_data_file(self):
         self.raw_data = json.load(open(self.datafile))
@@ -213,6 +239,11 @@ def main():
     parser.add_argument('--raw-file', metavar='FILE',
                         help="Load raw JSON data from FILE",
                         action='append', default=[])
+    parser.add_argument('--device', '-D', metavar='DEVTYPE',
+                        action='append', default=[], dest='devices',
+                        help="Query info about a device type")
+    parser.add_argument('--all-devices', action='store_true',
+                        help="Query info about all device types")
     #parser.add_argument('--all-machines', action='store_true',
     #                    help="Verify all machine-types")
     parser.add_argument('-d', '--debug', dest='debug', action='store_true',
