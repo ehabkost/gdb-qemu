@@ -22,6 +22,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
 import sys, argparse, logging, subprocess, json, os, platform, socket
+import difflib, pprint
 import qmp
 
 MYDIR = os.path.dirname(__file__)
@@ -39,6 +40,11 @@ def run_gdb_extractor(binary, machines):
     r = json.load(proc.stdout)
     proc.wait()
     return r
+
+def apply_compat_props(d, compat_props):
+    """Apply a list of compat_props to a d[driver][property] dictionary"""
+    for cp in compat_props:
+        d.setdefault(cp['driver'], {})[cp['property']] = cp['value']
 
 class QEMUBinaryInfo:
     def __init__(self, binary=None, datafile=None):
@@ -79,7 +85,7 @@ class QEMUBinaryInfo:
         self.append_raw_item('cpu-help', self.get_stdout('-cpu', 'help'))
         self.append_raw_item('hostname', {'platform.node': platform.node(),
                                           'gethostname': socket.gethostname()})
-        self.raw_data.extend(run_gdb_extractor(self.binary, args.machine))
+        self.raw_data.extend(run_gdb_extractor(self.binary, args.machines))
 
     def load_data_file(self):
         self.raw_data = json.load(open(self.datafile))
@@ -90,14 +96,34 @@ class QEMUBinaryInfo:
         else:
             self.load_data_file()
 
+    def get_machine(self, machine):
+        for i in self.raw_data:
+            if i['request'] == ['machine', machine]:
+                return i['result']
+
+def compare_machine(b1, b2, machine):
+    m1 = b1.get_machine(machine)
+    m2 = b2.get_machine(machine)
+    #FIXME: proper error message
+    assert m1 is not None
+    assert m2 is not None
+    d1 = {}
+    d2 = {}
+    apply_compat_props(d1, m1['compat_props'])
+    apply_compat_props(d2, m2['compat_props'])
+    if d1 != d2:
+        diff = ('\n'.join(difflib.ndiff(pprint.pformat(d1).splitlines(),
+                                        pprint.pformat(d2).splitlines())))
+        print diff
+
 def main():
     parser = argparse.ArgumentParser(
         description='Compare machine-type compatibility info between multiple QEMU binaries')
-    parser.add_argument('--qemu', '-Q', metavar='QEMU', required=True,
+    parser.add_argument('--qemu', '-Q', metavar='QEMU',
                         help='QEMU binary to run', action='append', default=[])
     parser.add_argument('--machine', '-M', metavar='MACHINE',
                         help='machine-type to verify', required=True,
-                        action='append', default=[])
+                        action='append', default=[], dest='machines')
     parser.add_argument('--raw-file', metavar='FILE',
                         help="Load raw JSON data from FILE",
                         action='append', default=[])
@@ -118,6 +144,10 @@ def main():
     binaries = [QEMUBinaryInfo(q) for q in args.qemu]
     binaries.extend([QEMUBinaryInfo(datafile=f) for f in args.raw_file])
 
+    if not binaries:
+        parser.error("At least one QEMU binary or JSON file needs to be provided")
+        return 1
+
     if args.dump_file and len(binaries) != 1:
         parser.error("Dumping to a JSON file is supported only if a single QEMU binary is provided")
         return 1
@@ -129,6 +159,10 @@ def main():
 
     if args.dump_file:
         json.dump(binaries[0].raw_data, open(args.dump_file, 'w'), indent=2)
+
+    for i in range(1, len(binaries)):
+        for m in args.machines:
+            compare_machine(binaries[0], binaries[1], m)
 
 if __name__ == '__main__':
     sys.exit(main())
