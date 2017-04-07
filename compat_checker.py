@@ -22,8 +22,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
 import sys, argparse, logging, subprocess, json, os, platform, socket
-import difflib, pprint
+import difflib, pprint, tempfile, shutil
 import qmp
+from logging import DEBUG, INFO, WARN, ERROR, CRITICAL
 
 MYDIR = os.path.dirname(__file__)
 GDB_EXTRACTOR = os.path.join(MYDIR, 'extract-qemu-info.py')
@@ -50,6 +51,9 @@ class QEMUBinaryInfo:
     def __init__(self, binary=None, datafile=None):
         self.binary = binary
         self.datafile = datafile
+        self._process = None
+        self._tmpdir = None
+        self._qmp = None
 
     def get_stdout(self, *args):
         """Helper to simply run QEMU and get stdout output"""
@@ -66,6 +70,39 @@ class QEMUBinaryInfo:
         return subprocess.Popen(['sh', '-c', "rpm -qf %s" % (self.binary)],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT).communicate()[0]
+
+    def open_qmp(self):
+        assert self.binary
+        self._tmpdir = tempfile.mkdtemp()
+        sockfile = os.path.join(self._tmpdir, 'monitor-sock')
+        self._qmp = qmp.QEMUMonitorProtocol(sockfile, server=True)
+        args = [self.binary, '-S', '-M', 'none', '-display', 'none', '-qmp', 'unix:%s' %(sockfile)]
+        self._process = subprocess.Popen(args, shell=False)
+        self._qmp.accept()
+        return self._qmp
+
+    def terminate(self):
+        if self._qmp:
+            self._qmp.command('quit')
+            self._qmp.close()
+            self._qmp = None
+        if self._process:
+            self._process.terminate()
+            self._process.wait()
+            self._process = None
+        if self._tmpdir:
+            shutil.rmtree(self._tmpdir)
+            self._tmpdir = None
+
+    def __del__(self):
+        self.terminate()
+
+    def query_qmp_info(self):
+        qmp = self.open_qmp()
+        machines = qmp.command('query-machines')
+        devices = qmp.command('qom-list-types', implements='device', abstract=True)
+        cpu_models = qmp.command('query-cpu-definitions')
+        return {'machines':machines, 'devices':devices, 'cpu-models':cpu_models}
 
     def append_raw_item(self, reqtype, result, args=[]):
         self.raw_data.append(dict(request=[reqtype] + list(args), result=result))
@@ -85,7 +122,13 @@ class QEMUBinaryInfo:
         self.append_raw_item('cpu-help', self.get_stdout('-cpu', 'help'))
         self.append_raw_item('hostname', {'platform.node': platform.node(),
                                           'gethostname': socket.gethostname()})
-        self.raw_data.extend(run_gdb_extractor(self.binary, args.machines))
+        self.qmp_info = self.query_qmp_info()
+        self.append_raw_item('qmp-info', self.qmp_info)
+        if not args.machines:
+            machines = [m['name'] for m in self.qmp_info['machines']]
+        else:
+            machines = args.machines
+        self.raw_data.extend(run_gdb_extractor(self.binary, machines))
 
     def load_data_file(self):
         self.raw_data = json.load(open(self.datafile))
@@ -101,9 +144,19 @@ class QEMUBinaryInfo:
             if i['request'] == ['machine', machine]:
                 return i['result']
 
+    def __str__(self):
+        if self.datafile:
+            return 'file %s' % (self.datafile)
+        else:
+            return 'binary %s' % (self.binary)
+
 def compare_machine(b1, b2, machine):
     m1 = b1.get_machine(machine)
     m2 = b2.get_machine(machine)
+    if m1 is None:
+        raise Exception("%s doesn't have info about machine %s" % (b1, machine))
+    if m2 is None:
+        raise Exception("%s doesn't have info about machine %s" % (b2, machine))
     #FIXME: proper error message
     assert m1 is not None
     assert m2 is not None
@@ -111,10 +164,19 @@ def compare_machine(b1, b2, machine):
     d2 = {}
     apply_compat_props(d1, m1['compat_props'])
     apply_compat_props(d2, m2['compat_props'])
-    if d1 != d2:
-        diff = ('\n'.join(difflib.ndiff(pprint.pformat(d1).splitlines(),
-                                        pprint.pformat(d2).splitlines())))
-        print diff
+
+    for d in set(d1.keys() + d2.keys()):
+        p1 = d1.get(d, {})
+        p2 = d2.get(d, {})
+        for p in set(p1.keys() + p2.keys()):
+            v1 = p1.get(p)
+            v2 = p2.get(p)
+            if v1 is None:
+                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b1, p, d)
+            elif v2 is None:
+                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, p, d)
+            elif v1 != v2:
+                yield ERROR, "difference at %s.%s (%r != %r)" % (d, p, v1, v2)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -122,7 +184,7 @@ def main():
     parser.add_argument('--qemu', '-Q', metavar='QEMU',
                         help='QEMU binary to run', action='append', default=[])
     parser.add_argument('--machine', '-M', metavar='MACHINE',
-                        help='machine-type to verify', required=True,
+                        help='machine-type to verify',
                         action='append', default=[], dest='machines')
     parser.add_argument('--raw-file', metavar='FILE',
                         help="Load raw JSON data from FILE",
@@ -136,9 +198,9 @@ def main():
 
     args = parser.parse_args()
 
-    lvl = logging.INFO
+    lvl = INFO
     if args.debug:
-        lvl = logging.DEBUG
+        lvl = DEBUG
     logging.basicConfig(stream=sys.stderr, level=lvl)
 
     binaries = [QEMUBinaryInfo(q) for q in args.qemu]
@@ -162,7 +224,8 @@ def main():
 
     for i in range(1, len(binaries)):
         for m in args.machines:
-            compare_machine(binaries[0], binaries[1], m)
+            for lvl,msg in compare_machine(binaries[0], binaries[1], m):
+                logger.log(lvl, msg)
 
 if __name__ == '__main__':
     sys.exit(main())
