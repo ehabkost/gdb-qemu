@@ -336,6 +336,13 @@ def build_omitted_prop_dict(binary):
         ('fw_cfg_mem',           'x-file-slots',                   0x10),
         ('intel-iommu',          'x-buggy-eim',                    True),
         ('kvmclock',             'x-mach-use-reliable-get-clock', False),
+
+        #XXX: this probably doesn't match the upstream QEMU behavior,
+        #     but we probably will never compare machine-types containing
+        #     those __redhat_* properties with upstream machine-types
+        #     directly, anyway
+        ('rtl8139',              '__redhat_send_rxokmul',         False),
+        ('e1000e',               '__redhat_e1000e_7_3_intr_state', True),
     ]
 
     r = {}
