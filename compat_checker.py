@@ -72,7 +72,7 @@ def get_devtype_property_info(devtype, propname):
         if r['type'] != ir['type']:
             logger.error("dc->props and instance props disagree about type of %s", propname)
         if r['defval'] != ir['defval']:
-            logger.warning("dc->props and instance props disagree about default value of %s", propname)
+            logger.debug("dc->props and instance props disagree about default value of %s", propname)
         # instance_props are more reliable, because instance_init can override the
         # default value set in dc->props
         return ir
