@@ -208,8 +208,13 @@ def find_field(t, fieldname):
         if f.name == fieldname:
             return f
 
-def value_to_py(v):
-    """Convert a single value to an equivalent Python value"""
+def value_to_py(v, follow_pointer=False):
+    """Convert a single value to an equivalent Python value
+
+    If follow_pointer is not false, follow pointer values.
+    follow_pointer can be a dictionary, in this case it will be
+    used as the follow_pointers argument to value_to_dict().
+    """
     t = v.type.strip_typedefs()
     code = t.code
     #dbg("field %s, type: %s (code %s)", f.name, t, type_code_name(code))   w
@@ -219,23 +224,29 @@ def value_to_py(v):
         return tolong(v)
     elif code == gdb.TYPE_CODE_BOOL:
         return bool(v)
-    elif code == gdb.TYPE_CODE_PTR and \
-        tolong(v) == 0: # NULL pointer
-        return None
-    elif code == gdb.TYPE_CODE_PTR and \
-         t.target().unqualified() == char:
-        return v.string()
-    elif code == gdb.TYPE_CODE_PTR and \
-         t.target().code == gdb.TYPE_CODE_FUNC:
-         return str(v)
+    elif code == gdb.TYPE_CODE_PTR:
+        target = t.target().strip_typedefs()
+        if tolong(v) == 0: # NULL pointer
+            return None
+        elif target.unqualified() == char:
+            return v.string()
+        elif target.code == gdb.TYPE_CODE_FUNC:
+            return str(v)
+        elif follow_pointer:
+            return value_to_py(v.dereference(), follow_pointer)
+        else:
+            dbg("not following pointer of target type: %s", type_code_name(target.code))
+            # empty dictionary just to indicate it's not a NULL pointer
+            return dict()
     elif code == gdb.TYPE_CODE_ENUM:
         return str(v)
     elif code == gdb.TYPE_CODE_STRUCT:
-        return value_to_dict(v)
+        return value_to_dict(v, follow_pointer if type(follow_pointer) == dict \
+                                else {})
     else:
         raise ValueError("Unsupported value type: %s" % (t))
 
-def value_to_dict(v):
+def value_to_dict(v, follow_pointers={}):
     """Return dictionary containing field values from GDB value @v
 
     Try to include all the fields whose type we know how to translate
@@ -252,8 +263,8 @@ def value_to_dict(v):
     for f in v.type.fields():
         fv = v[f.name]
         try:
-            #dbg("r[%r] = %r", f.name, rv)
-            r[f.name] = value_to_py(fv)
+            dbg("r[%r] = value_to_py(%s)", f.name, fv)
+            r[f.name] = value_to_py(fv, follow_pointers.get(f.name))
         except ValueError:
             pass
     return r
@@ -333,8 +344,7 @@ def compat_props(mi):
 
 def prop_info(prop):
     """Return dictionary containing information for qdev Property struct"""
-    r = value_to_dict(prop)
-    r['info'] = value_to_dict(prop['info'])
+    r = value_to_dict(prop, follow_pointers={'info':True})
 
     defval = prop['defval']
     if tolong(prop['qtype']) == tolong(QTYPE_QBOOL):
@@ -526,7 +536,7 @@ def query_device_type(args, devtype):
     dc = oc.cast(DeviceClass.pointer())
     #dbg("oc: 0x%x, dc: 0x%x", tolong(oc), tolong(dc))
     result = {}
-    result.update(value_to_dict(dc))
+    result.update(value_to_dict(dc, follow_pointers={'vmsd':True}))
     result['props'] = list(dev_class_props(dc))
     # note that we ignore cannot_destroy_with_object_finalize_yet, because
     # the risk is worth it: we can query all *-x86_64-cpu classes this way.
