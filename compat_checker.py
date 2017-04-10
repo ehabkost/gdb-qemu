@@ -310,11 +310,60 @@ class QEMUBinaryInfo:
             return 'binary %s' % (self.binary)
 
 
+def build_omitted_prop_dict(binary):
+    """Build list of property values for non-existing properties
+
+    This builds a dictionary containing the assumed values for properties
+    that don't exist in the existing binary (i.e. if it is a QEMU version
+    that is old and didn't have the property yet). The returned dictionary
+    will contain the value required to emulate QEMU behavior when the
+    property didn't exist yet.
+    """
+    OMITTED_PROP_VALUES = [
+        ('pci-device',           'x-pcie-extcap-init',        False),
+        ('x86_64-cpu',           'kvm-no-smi-migration',      True),
+        ('i386-cpu',             'kvm-no-smi-migration',      True),
+        ('x86_64-cpu',           'full-cpuid-auto-level',     False),
+        ('i386-cpu',             'full-cpuid-auto-level',     False),
+        ('x86_64-cpu',           'cpuid-0xb',                 False),
+        ('i386-cpu',             'cpuid-0xb',                 False),
+        ('virtio-pci',           'x-pcie-pm-init',            False),
+        ('virtio-pci',           'x-pcie-lnkctl-init',        False),
+        ('virtio-pci',           'x-pcie-deverr-init',        False),
+        ('virtio-pci',           'x-ignore-backend-features', True),
+        ('virtio-serial-device', 'emergency-write',           False),
+        ('fw_cfg_io',            'x-file-slots',              0x10),
+        ('fw_cfg_mem',           'x-file-slots',              0x10),
+        ('intel-iommu',          'x-buggy-eim',               True),
+    ]
+
+    r = {}
+    apply_compat_props(binary, r, (dict(driver=d, property=p, value=v) for (d, p, v) in OMITTED_PROP_VALUES))
+
+    #XXX: this one can't be solved without looking at
+    # commit 39c88f56977f9ad2451444d70dd21d8189d74f99 (v2.8.0-rc0~137^2)
+    # and 04e27c6bb034e57e60739362a90bc11a4d6f3ad4 (v2.8.0-rc2~5^2~2)
+    # QEMU do _not_ have the property available, but it will
+    # include the pcspk migration section in the migration stream.
+    # This means we can't know which option we have, unless we check
+    # the 'vmsd' field in the device class struct
+    dt = binary.get_devtype('isa-pcspk')
+    if 'vmsd' in dt:
+        # if vmsd value is known and vmsd was NULL, we know we're running a version that
+        # didn't migrate pcspk data:
+        migrate = (dt['vmsd'] is not None)
+        apply_compat_props(binary, r, [dict(driver='isa-pcspk', property='migrate', value=migrate)])
+
+    return r
+
 def compare_machine_compat_props(b1, b2, machine, m1, m2):
     compat1 = {}
     compat2 = {}
     apply_compat_props(b1, compat1, m1['compat_props'])
     apply_compat_props(b2, compat2, m2['compat_props'])
+
+    omitted1 = build_omitted_prop_dict(b1)
+    omitted2 = build_omitted_prop_dict(b2)
 
     for d in set(compat1.keys() + compat2.keys()):
         p1 = compat1.get(d, {})
@@ -340,14 +389,28 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             elif v2 is not None and dt2 is not None:
                 yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
 
+            # if property was not on compat_props, try to get the default value from
+            # device property info
+            if v1 is None and pi1 is not None:
+                v1 = pi1.get('defval')
+            if v2 is None and pi2 is not None:
+                v2 = pi2.get('defval')
+
+            # if we still don't know what was the default value, check our hardcoded
+            # list if known old values for properties
             if v1 is None:
-                v1 = get_devtype_property_default_value(dt1, p)
+                v1 = omitted1.get(d, {}).get(p)
             if v2 is None:
-                v2 = get_devtype_property_default_value(dt2, p)
+                v2 = omitted2.get(d, {}).get(p)
+
+            # warn about not knowing the actual default value only if the device type is
+            # really supported by the machine-type
             if v1 is None:
-                yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b1, machine)
+                if dt1 is not None:
+                    yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b1, machine)
             elif v2 is None:
-                yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b2, machine)
+                if dt2 is not None:
+                    yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b2, machine)
             elif not compare_properties(pi1, v1, pi2, v2):
                 yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
             else:
