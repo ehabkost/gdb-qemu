@@ -498,9 +498,11 @@ def main():
     if args.dump_file:
         json.dump(binaries[0].raw_data, open(args.dump_file, 'w'), indent=2)
 
-    for i in range(1, len(binaries)):
-        for lvl,msg in compare_binaries(binaries[0], binaries[1], args):
-            logger.log(lvl, msg)
+    for i,b1 in enumerate(binaries):
+        for b2 in binaries[i+1:]:
+            logger.info("Comparing %s and %s", b1, b2)
+            for lvl,msg in compare_binaries(b1, b2, args):
+                logger.log(lvl, msg)
 
 if __name__ == '__main__':
     sys.exit(main())
