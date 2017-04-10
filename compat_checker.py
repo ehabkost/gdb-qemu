@@ -466,7 +466,8 @@ def main():
     lvl = INFO
     if args.debug:
         lvl = DEBUG
-    logging.basicConfig(stream=sys.stdout, level=lvl)
+    logging.basicConfig(stream=sys.stdout, level=lvl,
+                        format='%(levelname)s: %(message)s')
 
     binaries = [QEMUBinaryInfo(q) for q in args.qemu]
     binaries.extend([QEMUBinaryInfo(datafile=f) for f in args.raw_file])
