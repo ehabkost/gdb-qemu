@@ -22,7 +22,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
 import sys, argparse, logging, subprocess, json, os, platform, socket
-import difflib, pprint, tempfile, shutil
+import difflib, pprint, tempfile, shutil, re
 import qmp
 from logging import DEBUG, INFO, WARN, ERROR, CRITICAL
 
@@ -39,6 +39,85 @@ def apply_compat_props(d, compat_props):
     """Apply a list of compat_props to a d[driver][property] dictionary"""
     for cp in compat_props:
         d.setdefault(cp['driver'], {})[cp['property']] = cp['value']
+
+def get_devtype_property_info(devtype, propname):
+    if devtype is None:
+        return None
+
+    r = None
+    for prop in devtype.get('props', []):
+        if prop['name'] == propname and 'defval' in prop:
+            r = dict(name=prop['name'],
+                     type=prop['info']['name'],
+                     defval=prop['defval'])
+            break
+
+    ir = None
+    for prop in devtype.get('instance_props', []):
+        if prop['name'] == propname and 'value' in prop:
+            ir = dict(name=prop['name'],
+                      type=prop['type'],
+                      defval=prop['value'])
+            break
+
+    if ir is not None and r is not None:
+        assert r['name'] == ir['name']
+        if r['type'] != ir['type']:
+            logger.error("dc->props and instance props disagree about type of %s", propname)
+        if r['defval'] != ir['defval']:
+            logger.warning("dc->props and instance props disagree about default value of %s", propname)
+        # instance_props are more reliable, because instance_init can override the
+        # default value set in dc->props
+        return ir
+    elif ir is not None:
+        return ir
+    else:
+        return r
+
+KNOWN_ENUMS = {
+    'FdcDriveType': ["144", "288", "120", "none", "auto"],
+    'OnOffAuto': ['on', 'off', 'auto']
+}
+
+def parse_property_value(prop, value):
+    """Parse a string according to property type
+
+    If value is None, simply return None.
+    """
+    if value is None:
+        return None
+
+    t = prop['type']
+    if re.match('u?int(|8|16|32|64)', t):
+        return int(value, base=0)
+    elif t == 'bool':
+        assert value in ['on', 'yes', 'true', 'off', 'no', 'false']
+        return value in ['on', 'yes', 'true']
+    elif t == 'str':
+        return str(value)
+    elif t in KNOWN_ENUMS:
+        assert value in KNOWN_ENUMS[t]
+        return value
+    else:
+        raise Exception("Unsupported property type %s" % (t))
+
+def get_devtype_property_default_value(devtype, propname):
+    """Extract default value for a property, based on device-type dictionary"""
+    if devtype is None:
+        return None
+
+    r = None
+    for prop in devtype.get('props', []):
+        if prop['name'] == propname and 'defval' in prop:
+            r = prop['defval']
+
+    for prop in devtype.get('instance_props', []):
+        if prop['name'] == propname and 'value' in prop:
+            if r is not None:
+                assert r == prop['value']
+            return prop['value']
+
+    return r
 
 class QEMUBinaryInfo:
     def __init__(self, binary=None, datafile=None):
@@ -93,7 +172,10 @@ class QEMUBinaryInfo:
             self._tmpdir = tempfile.mkdtemp()
         return self._tmpdir
 
-    def open_qmp(self):
+    def get_qmp(self):
+        if self._qmp is not None:
+            return self._qmp
+
         assert self.binary
         sockfile = os.path.join(self.tmpdir(), 'monitor-sock')
         self._qmp = qmp.QEMUMonitorProtocol(sockfile, server=True)
@@ -118,12 +200,22 @@ class QEMUBinaryInfo:
     def __del__(self):
         self.terminate()
 
+    def query_full_devtype_hierarchy(self):
+        qmp = self.get_qmp()
+        alltypes =qmp.command('qom-list-types', implements='device')
+        implements = {}
+        for d in alltypes:
+            implements[d['name']] = qmp.command('qom-list-types', implements=d['name'])
+        return implements
+
     def query_qmp_info(self):
-        qmp = self.open_qmp()
+        qmp = self.get_qmp()
         machines = qmp.command('query-machines')
         devices = qmp.command('qom-list-types', implements='device', abstract=True)
         cpu_models = qmp.command('query-cpu-definitions')
-        return {'machines':machines, 'devices':devices, 'cpu-models':cpu_models}
+        devtype_hierarchy = self.query_full_devtype_hierarchy()
+        return {'machines':machines, 'devices':devices, 'cpu-models':cpu_models,
+                'devtype-hierarchy':devtype_hierarchy }
 
     def append_raw_item(self, reqtype, result, args=[]):
         self.raw_data.append(dict(request=[reqtype] + list(args), result=result))
@@ -170,10 +262,16 @@ class QEMUBinaryInfo:
             if i['request'][0] == reqtype:
                 yield i
 
-    def get_machine(self, machine):
-        for m in self.list_requests('machine'):
-            if m['request'][1] == machine:
+    def get_one_request(self, reqtype, *args):
+        for m in self.list_requests(reqtype):
+            if m['request'][1:] == list(args):
                 return m['result']
+
+    def get_machine(self, machine):
+        return self.get_one_request('machine', machine)
+
+    def get_devtype(self, devtype):
+        return self.get_one_request('device-type', devtype)
 
     def available_machines(self):
         for m in self.list_requests('machine'):
@@ -187,22 +285,38 @@ class QEMUBinaryInfo:
 
 
 def compare_machine_compat_props(b1, b2, machine, m1, m2):
-    d1 = {}
-    d2 = {}
-    apply_compat_props(d1, m1['compat_props'])
-    apply_compat_props(d2, m2['compat_props'])
+    compat1 = {}
+    compat2 = {}
+    apply_compat_props(compat1, m1['compat_props'])
+    apply_compat_props(compat2, m2['compat_props'])
 
-    for d in set(d1.keys() + d2.keys()):
-        p1 = d1.get(d, {})
-        p2 = d2.get(d, {})
+    for d in set(compat1.keys() + compat2.keys()):
+        p1 = compat1.get(d, {})
+        p2 = compat2.get(d, {})
         for p in set(p1.keys() + p2.keys()):
+            dt1 = b1.get_devtype(d)
+            dt2 = b2.get_devtype(d)
+            pi1 = get_devtype_property_info(dt1, p)
+            pi2 = get_devtype_property_info(dt2, p)
             v1 = p1.get(p)
             v2 = p2.get(p)
+            if v1 is not None and pi1 is None:
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machine)
+            else:
+                v1 = parse_property_value(pi1, v1)
+            if v2 is not None and pi2 is None:
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
+            else:
+                v2 = parse_property_value(pi2, v2)
+            if v1 is None:
+                v1 = get_devtype_property_default_value(b1.get_devtype(d), p)
+            if v2 is None:
+                v2 = get_devtype_property_default_value(b2.get_devtype(d), p)
             if v1 is None:
                 yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b1, d, p)
             elif v2 is None:
                 yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, d, p)
-            elif v1 != v2:
+            elif str(v1) != str(v2):
                 yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
             else:
                 yield DEBUG, "machine %s: %s.%s is OK" % (machine, d, p)
@@ -256,7 +370,7 @@ def main():
     lvl = INFO
     if args.debug:
         lvl = DEBUG
-    logging.basicConfig(stream=sys.stderr, level=lvl)
+    logging.basicConfig(stream=sys.stdout, level=lvl)
 
     binaries = [QEMUBinaryInfo(q) for q in args.qemu]
     binaries.extend([QEMUBinaryInfo(datafile=f) for f in args.raw_file])

@@ -40,7 +40,6 @@ dbg = logger.debug
 
 
 CATCH_EXCEPTIONS = False
-UNSAFE_DEVS = set()
 UNSAFE_PROPS = set(['i440FX-pcihost.pci-hole64-end',
                     'i440FX-pcihost.pci-hole64-start',
                     'q35-pcihost.pci-hole64-end',
@@ -496,7 +495,7 @@ def get_machine(name):
 # Actual query functions
 ########################
 
-def query_machine(machine):
+def query_machine(args, machine):
     """Query raw information for a machine-type name"""
     mi = get_machine(machine)
     if mi is None or tolong(mi) == 0:
@@ -517,7 +516,7 @@ def query_machine(machine):
     result['compat_props'] = compat_props(mi)
     return result
 
-def query_device_type(devtype):
+def query_device_type(args, devtype):
     """Query information for a specific device type name"""
     oc = object_class_by_name(c_string(devtype))
     if tolong(oc) == 0:
@@ -531,7 +530,7 @@ def query_device_type(devtype):
     # note that we ignore cannot_destroy_with_object_finalize_yet, because
     # the risk is worth it: we can query all *-x86_64-cpu classes this way.
     # if we find other devices that crash, we can add them to UNSAFE_DEVS
-    if devtype not in UNSAFE_DEVS:
+    if args.instance_properties and devtype not in args.unsafe_devs:
         result['instance_props'] = list(object_class_instance_props(oc))
     return result
 
@@ -541,12 +540,12 @@ REQ_HANDLERS = {
     'device-type': query_device_type,
 }
 
-def handle_request(reqtype, *args):
+def handle_request(args, reqtype, *reqargs):
     handler = REQ_HANDLERS.get(reqtype)
     if handler is None:
         raise Exception("invalid request: %s" % (reqtype))
-    dbg("handling request: %r" % ((reqtype,) + args, ))
-    return handler(*args)
+    dbg("handling request: %r" % ((reqtype,) + reqargs, ))
+    return handler(args, *reqargs)
 
 def handle_requests(args):
     global CATCH_EXCEPTIONS
@@ -557,7 +556,7 @@ def handle_requests(args):
 
     for req in args.requests:
         try:
-            r = handle_request(*req)
+            r = handle_request(args, *req)
             yield dict(request=req, result=r)
         except KeyboardInterrupt:
             raise
@@ -627,6 +626,9 @@ parser.add_argument('--device', '-D', metavar='DEVTYPE',
 parser.add_argument('--unsafe-device', metavar='DEVTYPE',
                     help="Don't try to get instance properties from DEVTYPE",
                     action='append', default=[], dest='unsafe_devs')
+parser.add_argument('--no-instance-properties', action='store_false',
+                    dest='instance_properties', default=True,
+                    help="Don't query QOM instance properties directly")
 
 args = parser.parse_args(args=sys.argv)
 
@@ -634,9 +636,6 @@ lvl = logging.INFO
 if args.debug:
     lvl = logging.DEBUG
 logging.basicConfig(stream=sys.stderr, level=lvl)
-
-if args.unsafe_devs:
-    UNSAFE_DEVS = set(args.unsafe_devs)
 
 if not args.requests:
     parser.error("No action was requested")
