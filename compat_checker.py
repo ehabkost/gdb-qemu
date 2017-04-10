@@ -108,6 +108,25 @@ def parse_property_value(prop, value):
     else:
         raise Exception("Unsupported property type %s" % (t))
 
+def compare_properties(p1, v1, p2, v2):
+    """Compare two property values, with some hacks to handle type mismatches"""
+    # intel-hda.msi had changed its type some time ago
+    if p1 is not None \
+       and p1.get('type') == 'OnOffAuto' \
+       and type(v2) == int:
+        if v2 == 0:
+            v2 = "off"
+        elif v2 == 1:
+            v2 = "on"
+    if p2 is not None \
+       and p2.get('type') == 'OnOffAuto' \
+       and type(v1) == int:
+        if v1 == 0:
+            v1 = "off"
+        elif v1 == 1:
+            v1 = "on"
+    return v2 == v1
+
 def get_devtype_property_default_value(devtype, propname):
     """Extract default value for a property, based on device-type dictionary"""
     if devtype is None:
@@ -307,23 +326,29 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             pi2 = get_devtype_property_info(dt2, p)
             v1 = p1.get(p)
             v2 = p2.get(p)
-            if v1 is not None and pi1 is None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machine)
-            else:
+            # we have a problem if:
+            # 1) the property is set; 2) the devtype is really supported by the binary;
+            # and 3) the propert is not present.
+            # This means setting compat_props will fail if the device is present
+            # on a VM.
+            if pi1 is not None: # found property info
                 v1 = parse_property_value(pi1, v1)
-            if v2 is not None and pi2 is None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
-            else:
+            elif v1 is not None and dt1 is not None:
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machine)
+            if pi2 is not None: # found property info
                 v2 = parse_property_value(pi2, v2)
+            elif v2 is not None and dt2 is not None:
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
+
             if v1 is None:
-                v1 = get_devtype_property_default_value(b1.get_devtype(d), p)
+                v1 = get_devtype_property_default_value(dt1, p)
             if v2 is None:
-                v2 = get_devtype_property_default_value(b2.get_devtype(d), p)
+                v2 = get_devtype_property_default_value(dt2, p)
             if v1 is None:
-                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b1, d, p)
+                yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b1, machine)
             elif v2 is None:
-                yield WARN, "machine %s in %s doesn't have %s.%s set" % (machine, b2, d, p)
-            elif str(v1) != str(v2):
+                yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b2, machine)
+            elif not compare_properties(pi1, v1, pi2, v2):
                 yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
             else:
                 yield DEBUG, "machine %s: %s.%s is OK" % (machine, d, p)
