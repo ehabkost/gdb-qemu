@@ -412,8 +412,7 @@ def object_iter_props(obj):
 
 def object_class_instance_props(oc):
     """Try to query QOM properties available when actual instantiating an object"""
-    if bool(object_class_is_abstract(oc)):
-        return
+    assert not bool(object_class_is_abstract(oc))
 
     # this operation is very risky: there are lots of devices that
     # don't expect to be created using object_new() and have their
@@ -449,12 +448,14 @@ def object_class_instance_props(oc):
             else:
                 msg = error_get_pretty(errp.dereference()).string()
                 logger.info("Error trying to get property %r from devtype %r: %s" % (p['name'], typenamestr, msg))
+                p['value-error'] = msg
             g_free(errp)
         except KeyboardInterrupt:
             raise
         except:
             logger.warning("Exception trying to get property %r from devtype %r" % (p['name'], typenamestr))
             logger.warning(traceback.format_exc())
+            p['value-exception'] = dict(traceback=traceback.format_exc())
             if CATCH_EXCEPTIONS:
                 raise
         yield p
@@ -530,7 +531,8 @@ def query_device_type(args, devtype):
     # note that we ignore cannot_destroy_with_object_finalize_yet, because
     # the risk is worth it: we can query all *-x86_64-cpu classes this way.
     # if we find other devices that crash, we can add them to UNSAFE_DEVS
-    if args.instance_properties and devtype not in args.unsafe_devs:
+    if args.instance_properties and devtype not in args.unsafe_devs \
+       and not bool(object_class_is_abstract(oc)):
         result['instance_props'] = list(object_class_instance_props(oc))
     return result
 
