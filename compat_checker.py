@@ -42,7 +42,7 @@ def apply_compat_props(binary, d, compat_props):
         t = cp['driver']
         qmp_info = binary.get_one_request('qmp-info') or {}
         hierarchy = qmp_info.get('devtype-hierarchy', {})
-        subtypes = hierarchy.get(t, [{'name':t, 'xxxx':True}])
+        subtypes = hierarchy.get(t, [{'name':t}])
         dbg("subtypes: %r", subtypes)
         for subtype in  subtypes:
             d.setdefault(subtype['name'], {})[cp['property']] = cp['value']
