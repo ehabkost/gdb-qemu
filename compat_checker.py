@@ -97,10 +97,10 @@ def parse_property_value(prop, value):
     t = prop['type']
     if re.match('u?int(|8|16|32|64)', t):
         return int(value, base=0)
-    elif t == 'bool':
+    elif t == 'bool' or t == 'boolean':
         assert value in ['on', 'yes', 'true', 'off', 'no', 'false']
         return value in ['on', 'yes', 'true']
-    elif t == 'str':
+    elif t == 'str' or t == 'string':
         return str(value)
     elif t in KNOWN_ENUMS:
         assert value in KNOWN_ENUMS[t]
