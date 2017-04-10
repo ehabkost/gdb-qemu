@@ -320,21 +320,22 @@ def build_omitted_prop_dict(binary):
     property didn't exist yet.
     """
     OMITTED_PROP_VALUES = [
-        ('pci-device',           'x-pcie-extcap-init',        False),
-        ('x86_64-cpu',           'kvm-no-smi-migration',      True),
-        ('i386-cpu',             'kvm-no-smi-migration',      True),
-        ('x86_64-cpu',           'full-cpuid-auto-level',     False),
-        ('i386-cpu',             'full-cpuid-auto-level',     False),
-        ('x86_64-cpu',           'cpuid-0xb',                 False),
-        ('i386-cpu',             'cpuid-0xb',                 False),
-        ('virtio-pci',           'x-pcie-pm-init',            False),
-        ('virtio-pci',           'x-pcie-lnkctl-init',        False),
-        ('virtio-pci',           'x-pcie-deverr-init',        False),
-        ('virtio-pci',           'x-ignore-backend-features', True),
-        ('virtio-serial-device', 'emergency-write',           False),
-        ('fw_cfg_io',            'x-file-slots',              0x10),
-        ('fw_cfg_mem',           'x-file-slots',              0x10),
-        ('intel-iommu',          'x-buggy-eim',               True),
+        ('pci-device',           'x-pcie-extcap-init',            False),
+        ('x86_64-cpu',           'kvm-no-smi-migration',           True),
+        ('i386-cpu',             'kvm-no-smi-migration',           True),
+        ('x86_64-cpu',           'full-cpuid-auto-level',         False),
+        ('i386-cpu',             'full-cpuid-auto-level',         False),
+        ('x86_64-cpu',           'cpuid-0xb',                     False),
+        ('i386-cpu',             'cpuid-0xb',                     False),
+        ('virtio-pci',           'x-pcie-pm-init',                False),
+        ('virtio-pci',           'x-pcie-lnkctl-init',            False),
+        ('virtio-pci',           'x-pcie-deverr-init',            False),
+        ('virtio-pci',           'x-ignore-backend-features',      True),
+        ('virtio-serial-device', 'emergency-write',               False),
+        ('fw_cfg_io',            'x-file-slots',                   0x10),
+        ('fw_cfg_mem',           'x-file-slots',                   0x10),
+        ('intel-iommu',          'x-buggy-eim',                    True),
+        ('kvmclock',             'x-mach-use-reliable-get-clock', False),
     ]
 
     r = {}
