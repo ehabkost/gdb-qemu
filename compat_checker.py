@@ -425,7 +425,7 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             elif not compare_properties(pi1, v1, pi2, v2):
                 yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
             else:
-                yield DEBUG, "machine %s: %s.%s is OK" % (machine, d, p)
+                yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machine, d, p, v1, v2)
 
 def compare_machine(b1, b2, machine):
     m1 = b1.get_machine(machine)
