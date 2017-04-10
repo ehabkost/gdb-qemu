@@ -125,6 +125,9 @@ def compare_properties(p1, v1, p2, v2):
             v1 = "off"
         elif v1 == 1:
             v1 = "on"
+    if p1 is None or p2 is None:
+        v1 = str(v1)
+        v2 = str(v2)
     return v2 == v1
 
 def get_devtype_property_default_value(devtype, propname):
