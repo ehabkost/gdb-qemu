@@ -35,10 +35,17 @@ dbg = logger.debug
 # devices that can make gdb crash if querying instance properties:
 UNSAFE_DEVICES = set(['i440FX-pcihost', 'pc-dimm', 'q35-pcihost'])
 
-def apply_compat_props(d, compat_props):
+def apply_compat_props(binary, d, compat_props):
     """Apply a list of compat_props to a d[driver][property] dictionary"""
     for cp in compat_props:
-        d.setdefault(cp['driver'], {})[cp['property']] = cp['value']
+        # translate each compat property to all the subtypes
+        t = cp['driver']
+        qmp_info = binary.get_one_request('qmp-info') or {}
+        hierarchy = qmp_info.get('devtype-hierarchy', {})
+        subtypes = hierarchy.get(t, [{'name':t, 'xxxx':True}])
+        dbg("subtypes: %r", subtypes)
+        for subtype in  subtypes:
+            d.setdefault(subtype['name'], {})[cp['property']] = cp['value']
 
 def get_devtype_property_info(devtype, propname):
     if devtype is None:
@@ -202,7 +209,7 @@ class QEMUBinaryInfo:
 
     def query_full_devtype_hierarchy(self):
         qmp = self.get_qmp()
-        alltypes =qmp.command('qom-list-types', implements='device')
+        alltypes =qmp.command('qom-list-types', implements='device', abstract=True)
         implements = {}
         for d in alltypes:
             implements[d['name']] = qmp.command('qom-list-types', implements=d['name'])
@@ -287,8 +294,8 @@ class QEMUBinaryInfo:
 def compare_machine_compat_props(b1, b2, machine, m1, m2):
     compat1 = {}
     compat2 = {}
-    apply_compat_props(compat1, m1['compat_props'])
-    apply_compat_props(compat2, m2['compat_props'])
+    apply_compat_props(b1, compat1, m1['compat_props'])
+    apply_compat_props(b2, compat2, m2['compat_props'])
 
     for d in set(compat1.keys() + compat2.keys()):
         p1 = compat1.get(d, {})
