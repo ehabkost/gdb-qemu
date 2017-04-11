@@ -314,7 +314,7 @@ class QEMUBinaryInfo:
     def get_one_request(self, reqtype, *args):
         for m in self.list_requests(reqtype):
             if m['request'][1:] == list(args):
-                return m['result']
+                return m.get('result')
 
     def get_machine(self, machine):
         return self.get_one_request('machine', machine)
