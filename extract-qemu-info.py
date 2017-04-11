@@ -488,6 +488,12 @@ def object_class_instance_props(devtype, oc):
         yield p
     object_unref(obj)
 
+def unwrap_machine(mc):
+    if find_field(mc, 'qemu_machine'):
+        return mc['qemu_machine']
+    else:
+        return mc
+
 def get_machine(name):
     """Find machine class"""
     if find_machine:
@@ -500,7 +506,7 @@ def get_machine(name):
     machines = object_class_get_list(c_string("machine"), 0)
     el = machines
     while tolong(el):
-        mc = el['data'].cast(MachineClass.pointer())
+        mc = unwrap_machine(el['data'].cast(MachineClass.pointer()))
         #dbg("looking at mc: %s", mc)
         if mc['name'].string() == name or \
            tolong(mc['alias']) != 0 and mc['alias'].string() == name:
