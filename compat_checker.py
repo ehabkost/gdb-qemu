@@ -417,7 +417,7 @@ def build_omitted_prop_dict(binary):
     # This means we can't know which option we have, unless we check
     # the 'vmsd' field in the device class struct
     dt = binary.get_devtype('isa-pcspk')
-    if 'vmsd' in dt:
+    if dt and 'vmsd' in dt:
         # if vmsd value is known and vmsd was NULL, we know we're running a version that
         # didn't migrate pcspk data:
         migrate = (dt['vmsd'] is not None)
