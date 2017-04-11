@@ -432,22 +432,43 @@ def object_iter_props(obj):
         for p in qtailq_foreach(obj['properties'], 'node'):
             yield p
 
-def object_class_instance_props(oc):
+def object_prop_get_value(devtype, obj, prop, p):
+    """Get property value from object, and set 'value' dictionary field
+
+    If an exception or error occurrs, the 'value-exception' or 'value-error'
+    fields will be set, instead.
+
+    This operation is very risky: there are some devices that
+    don't expect have their properties queried without being
+    realized first. Some examples:
+    * getting the value of a child property triggers the obj->parent != NULL assertion
+      at object_get_canonical_path_component() and I don't know why
+    * pc-dimm "size" property will crash if dimm->hostmem is not set
+    """
+    errp = g_new0(Error.pointer())
+    try:
+        val = object_property_get_qobject(obj, prop['name'], errp)
+        if tolong(errp.dereference()) == 0:
+            p['value'] = qobject_value(val)
+        else:
+            msg = error_get_pretty(errp.dereference()).string()
+            logger.info("Error trying to get property %r from devtype %r: %s" % (p['name'], devtype, msg))
+            p['value-error'] = msg
+        g_free(errp)
+    except KeyboardInterrupt:
+        raise
+    except:
+        logger.warning("Exception trying to get property %r from devtype %r" % (p['name'], devtype))
+        logger.warning(traceback.format_exc())
+        p['value-exception'] = dict(traceback=traceback.format_exc())
+        if CATCH_EXCEPTIONS:
+            raise
+
+def object_class_instance_props(devtype, oc):
     """Try to query QOM properties available when actual instantiating an object"""
     assert not bool(object_class_is_abstract(oc))
 
-    # this operation is very risky: there are lots of devices that
-    # don't expect to be created using object_new() and have their
-    # properties queried without realizing the device first
-    #
-    # Some examples:
-    # * getting the value of a child property triggers the obj->parent != NULL assertion
-    #   at object_get_canonical_path_component() and I don't know why
-    # * pc-dimm "size" property will crash if dimm->hostmem is not set
-
-    typename = object_class_get_name(oc)
-    typenamestr = typename.string()
-    obj = object_new(typename)
+    obj = object_new(c_string(devtype))
     #dbg("obj: 0x%x: %s", tolong(obj), obj.dereference())
     for prop in object_iter_props(obj):
         p = value_to_dict(prop)
@@ -458,28 +479,12 @@ def object_class_instance_props(oc):
         if tolong(prop['get']) == 0:
             # No getter function
             continue
-        propkey = '%s.%s' % (typenamestr, prop['name'].string())
+        propkey = '%s.%s' % (devtype, prop['name'].string())
         if propkey in UNSAFE_PROPS:
             dbg("skipping unsafe property: %s", propkey)
-            continue
-        errp = g_new0(Error.pointer())
-        try:
-            val = object_property_get_qobject(obj, prop['name'], errp)
-            if tolong(errp.dereference()) == 0:
-                p['value'] = qobject_value(val)
-            else:
-                msg = error_get_pretty(errp.dereference()).string()
-                logger.info("Error trying to get property %r from devtype %r: %s" % (p['name'], typenamestr, msg))
-                p['value-error'] = msg
-            g_free(errp)
-        except KeyboardInterrupt:
-            raise
-        except:
-            logger.warning("Exception trying to get property %r from devtype %r" % (p['name'], typenamestr))
-            logger.warning(traceback.format_exc())
-            p['value-exception'] = dict(traceback=traceback.format_exc())
-            if CATCH_EXCEPTIONS:
-                raise
+        else:
+            object_prop_get_value(devtype, obj, prop, p)
+
         yield p
     object_unref(obj)
 
@@ -555,7 +560,7 @@ def query_device_type(args, devtype):
     # if we find other devices that crash, we can add them to UNSAFE_DEVS
     if args.instance_properties and devtype not in args.unsafe_devs \
        and not bool(object_class_is_abstract(oc)):
-        result['instance_props'] = list(object_class_instance_props(oc))
+        result['instance_props'] = list(object_class_instance_props(devtype, oc))
     return result
 
 # The functions that will handle each type of request
