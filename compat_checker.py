@@ -278,11 +278,10 @@ class QEMUBinaryInfo:
             machines = sorted([m['name'] for m in qmp_info['machines']])
         else:
             machines = args.machines
-        devices = []
-        if args.all_devices:
-            devices = sorted(self.all_devtypes())
-        elif args.devices:
+        if args.devices:
             devices = args.devices
+        else:
+            devices = sorted(self.all_devtypes())
         self.raw_data.extend(self.run_gdb_extractor(args, machines, devices))
 
     def load_data_file(self, json_data=None):
