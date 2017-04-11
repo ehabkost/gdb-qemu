@@ -250,6 +250,9 @@ class QEMUBinaryInfo:
     def append_raw_item(self, reqtype, result, args=[]):
         self.raw_data.append(dict(request=[reqtype] + list(args), result=result))
 
+    def all_devtypes(self):
+        return [d['name'] for d in self.get_one_request('qmp-info')['devices']]
+
     def extract_binary_data(self, args):
         self.raw_data = []
         version_info = {'help': self.get_stdout('-version'),
@@ -265,15 +268,15 @@ class QEMUBinaryInfo:
         self.append_raw_item('cpu-help', self.get_stdout('-cpu', 'help'))
         self.append_raw_item('hostname', {'platform.node': platform.node(),
                                           'gethostname': socket.gethostname()})
-        self.qmp_info = self.query_qmp_info()
-        self.append_raw_item('qmp-info', self.qmp_info)
+        qmp_info = self.query_qmp_info()
+        self.append_raw_item('qmp-info', qmp_info)
         if not args.machines:
-            machines = sorted([m['name'] for m in self.qmp_info['machines']])
+            machines = sorted([m['name'] for m in qmp_info['machines']])
         else:
             machines = args.machines
         devices = []
         if args.all_devices:
-            devices = sorted([d['name'] for d in self.qmp_info['devices']])
+            devices = sorted(self.all_devtypes())
         elif args.devices:
             devices = args.devices
         self.raw_data.extend(self.run_gdb_extractor(args, machines, devices))
@@ -309,9 +312,9 @@ class QEMUBinaryInfo:
 
     def __str__(self):
         if self.datafile:
-            return 'file %s' % (self.datafile)
+            return '[file %s]' % (self.datafile)
         else:
-            return 'binary %s' % (self.binary)
+            return '[binary %s]' % (self.binary)
 
 
 def build_omitted_prop_dict(binary):
@@ -385,7 +388,7 @@ def build_omitted_prop_dict(binary):
 
     return r
 
-def compare_machine_compat_props(b1, b2, machine, m1, m2):
+def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
     compat1 = {}
     compat2 = {}
     apply_compat_props(b1, compat1, m1['compat_props'])
@@ -394,16 +397,29 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
     omitted1 = build_omitted_prop_dict(b1)
     omitted2 = build_omitted_prop_dict(b2)
 
-    for d in set(compat1.keys() + compat2.keys()):
-        p1 = compat1.get(d, {})
-        p2 = compat2.get(d, {})
-        for p in set(p1.keys() + p2.keys()):
+    if args.devices:
+        devices_to_check = set(args.devices)
+    else:
+        devices_to_check = set(compat1.keys() + compat2.keys())
+    if args.all_devices:
+        devices_to_check.update(b1.all_devtypes())
+        devices_to_check.update(b2.all_devtypes())
+
+    for d in devices_to_check:
+        cp1 = compat1.get(d, {})
+        cp2 = compat2.get(d, {})
+        for p in set(cp1.keys() + cp2.keys()):
+            dbg("will compare %s.%s", d, p)
             dt1 = b1.get_devtype(d)
             dt2 = b2.get_devtype(d)
+            dbg("dt1: %s, dt2: %s", dt1 and dt1.get('type'), dt2 and dt2.get('type'))
             pi1 = get_devtype_property_info(dt1, p)
             pi2 = get_devtype_property_info(dt2, p)
-            v1 = p1.get(p)
-            v2 = p2.get(p)
+            dbg("pi1: %r, pi2: %r", pi1, pi2)
+            v1 = cp1.get(p)
+            v2 = cp2.get(p)
+            dbg("v1: %r, v2: %r", v1, v2)
+
             # we have a problem if:
             # 1) the property is set; 2) the devtype is really supported by the binary;
             # and 3) the propert is not present.
@@ -418,12 +434,16 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             elif v2 is not None and dt2 is not None:
                 yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
 
+            dbg("parsed v1: %r, v2: %r", v1, v2)
+
             # if property was not on compat_props, try to get the default value from
             # device property info
             if v1 is None and pi1 is not None:
                 v1 = pi1.get('defval')
             if v2 is None and pi2 is not None:
                 v2 = pi2.get('defval')
+
+            dbg("defval v1: %r, v2: %r", v1, v2)
 
             # if we still don't know what was the default value, check our hardcoded
             # list if known old values for properties
@@ -432,11 +452,13 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             if v2 is None:
                 v2 = omitted2.get(d, {}).get(p)
 
+            dbg("omitted v1: %r, v2: %r", v1, v2)
+
             # warn about not knowing the actual default value only if the device type is
             # really supported by the machine-type
             if v1 is None:
                 if dt1 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b1, machine)
+                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machine)
             elif v2 is None:
                 if dt2 is not None:
                     yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b2, machine)
@@ -445,7 +467,7 @@ def compare_machine_compat_props(b1, b2, machine, m1, m2):
             else:
                 yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machine, d, p, v1, v2)
 
-def compare_machine(b1, b2, machine):
+def compare_machine(args, b1, b2, machine):
     m1 = b1.get_machine(machine)
     m2 = b2.get_machine(machine)
     if m1 is None:
@@ -453,17 +475,17 @@ def compare_machine(b1, b2, machine):
     if m2 is None:
         raise Exception("%s doesn't have info about machine %s" % (b2, machine))
 
-    for e in compare_machine_compat_props(b1, b2, machine, m1, m2):
+    for e in compare_machine_compat_props(args, b1, b2, machine, m1, m2):
         yield e
 
-def compare_binaries(b1, b2, args):
+def compare_binaries(args, b1, b2):
     machines = args.machines
     if not machines:
         machines = set(b1.available_machines())
         machines.intersection_update(b2.available_machines())
     for m in machines:
         dbg("will compare machine %s in binaries: %s and %s", m, b1, b2)
-        for error in compare_machine(b1, b2, m):
+        for error in compare_machine(args, b1, b2, m):
             yield error
 
 def main():
@@ -519,7 +541,7 @@ def main():
     for i,b1 in enumerate(binaries):
         for b2 in binaries[i+1:]:
             logger.info("Comparing %s and %s", b1, b2)
-            for lvl,msg in compare_binaries(b1, b2, args):
+            for lvl,msg in compare_binaries(args, b1, b2):
                 logger.log(lvl, msg)
 
 if __name__ == '__main__':
