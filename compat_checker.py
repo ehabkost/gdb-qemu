@@ -96,10 +96,12 @@ def parse_property_value(prop, value):
 
     t = prop['type']
     if re.match('u?int(|8|16|32|64)', t):
+        if type(value) == int:
+            return value
         return int(value, base=0)
     elif t == 'bool' or t == 'boolean':
-        assert value in ['on', 'yes', 'true', 'off', 'no', 'false']
-        return value in ['on', 'yes', 'true']
+        assert value in ['on', 'yes', 'true', 'off', 'no', 'false', True, False], "Invalid boolean value: %s" % (value)
+        return value in ['on', 'yes', 'true', True]
     elif t == 'str' or t == 'string':
         return str(value)
     elif t in KNOWN_ENUMS:
@@ -126,9 +128,19 @@ def compare_properties(p1, v1, p2, v2):
             v1 = "off"
         elif v1 == 1 or v1 == True:
             v1 = "on"
-    if p1 is None or p2 is None:
+
+    # try string comparison if we really don't know anything about
+    # the property:
+    if p1 is None and p2 is None:
         v1 = str(v1)
         v2 = str(v2)
+    elif p1 is not None and p2 is None:
+        # if property type is unknown on one QEMU binary, try using the
+        # type information from the other binary:
+        v2 = parse_property_value(p1, v2)
+    elif p2 is not None and p1 is None:
+        v1 = parse_property_value(p2, v1)
+
     return v2 == v1
 
 def get_devtype_property_default_value(devtype, propname):
