@@ -342,10 +342,12 @@ def build_omitted_prop_dict(binary):
         ('virtio-pci',           'x-disable-pcie',                 True),
         ('virtio-pci',           'virtio-pci-bus-master-bug-migration', True),
         ('virtio-pci',           'page-per-vq',                    True),
-        ('virtio-pci',           'migrate-extra',                  True),
+        ('virtio-pci',           'migrate-extra',                 False),
         ('virtio-pci',           'disable-modern',                 True),
         ('virtio-pci',           'disable-legacy',                False),
         ('virtio-serial-device', 'emergency-write',               False),
+        ('virtio-net-pci',       'guest_announce',                False),
+        ('virtio-net-pci',       'ctrl_guest_offloads',           False),
         # note that "any_layout" is registered at virtio-device, but
         # alias properties are registered at virtio-pci subclasses.
         # the compat_props properties, on the other hand, are set
@@ -360,6 +362,19 @@ def build_omitted_prop_dict(binary):
         ('xio3130-downstream',   'power_controller_present',      False),
         ('ioh3420',              'power_controller_present',      False),
         ('vmxnet3',              'x-disable-pcie',                 True),
+        ('VGA',                  'qemu-extended-regs',            False),
+        ('usb-redir',            'streams',                       False),
+        ('usb-mouse',            'usb_version',                       1),
+        ('usb-kbd',              'usb_version',                       1),
+        ('ICH9-LPC',             'memory-hotplug-support',        False),
+        ('PIIX4_PM',             'memory-hotplug-support',        False),
+        ('PIIX4_PM',             'acpi-pci-hotplug-with-bridge-support', False),
+        ('pci-serial',           'prog_if',                           0),
+        ('pci-serial-2x',        'prog_if',                           0),
+        ('pci-serial-4x',        'prog_if',                           0),
+        ('nec-usb-xhci',         'superspeed-ports-first',        False),
+        ('nec-usb-xhci',         'force-pcie-endcap',              True),
+        ('apic-common',          'legacy-instance-id',             True),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
