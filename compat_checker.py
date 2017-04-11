@@ -149,10 +149,14 @@ def get_devtype_property_default_value(devtype, propname):
 
     return r
 
+AUTO = 0
+BINARY = 1
+JSON = 2
+
 class QEMUBinaryInfo:
-    def __init__(self, binary=None, datafile=None):
-        self.binary = binary
-        self.datafile = datafile
+    def __init__(self, path, filetype=AUTO):
+        self.path = path
+        self.type = filetype
         self._process = None
         self._tmpdir = None
         self._qmp = None
@@ -170,7 +174,7 @@ class QEMUBinaryInfo:
                 cmd.extend(['--unsafe-device', d])
         if args.debug:
             cmd.append('-d')
-        cmd.append(self.binary)
+        cmd.append(self.path)
         subprocess.call(cmd)
         try:
             r = json.load(open(outfile))
@@ -184,7 +188,7 @@ class QEMUBinaryInfo:
     def get_stdout(self, *args):
         """Helper to simply run QEMU and get stdout output"""
         try:
-            return subprocess.Popen([self.binary] + list(args),
+            return subprocess.Popen([self.path] + list(args),
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT).communicate()[0]
         except:
@@ -193,7 +197,7 @@ class QEMUBinaryInfo:
     def get_rpm_package(self):
         # use shell to ensure we will just get an error message if RPM
         # is not available
-        return subprocess.Popen(['sh', '-c', "rpm -qf %s" % (self.binary)],
+        return subprocess.Popen(['sh', '-c', "rpm -qf %s" % (self.path)],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT).communicate()[0]
 
@@ -206,10 +210,10 @@ class QEMUBinaryInfo:
         if self._qmp is not None:
             return self._qmp
 
-        assert self.binary
+        assert self.path
         sockfile = os.path.join(self.tmpdir(), 'monitor-sock')
         self._qmp = qmp.QEMUMonitorProtocol(sockfile, server=True)
-        args = [self.binary, '-S', '-M', 'none', '-display', 'none', '-qmp', 'unix:%s' %(sockfile)]
+        args = [self.path, '-S', '-M', 'none', '-display', 'none', '-qmp', 'unix:%s' %(sockfile)]
         self._process = subprocess.Popen(args, shell=False)
         self._qmp.accept()
         return self._qmp
@@ -281,14 +285,27 @@ class QEMUBinaryInfo:
             devices = args.devices
         self.raw_data.extend(self.run_gdb_extractor(args, machines, devices))
 
-    def load_data_file(self):
-        self.raw_data = json.load(open(self.datafile))
+    def load_data_file(self, json_data=None):
+        if json_data is None:
+            json_data = json.load(open(self.path))
+        self.raw_data = json_data
 
     def load_data(self, args):
-        if self.binary:
+        if self.type == BINARY:
             self.extract_binary_data(args)
-        else:
+        elif self.type == JSON:
             self.load_data_file()
+        else:
+            # autodetect:
+            try:
+                self.load_data_file()
+                self.type = JSON
+            except:
+                pass
+
+            if self.type != JSON:
+                self.extract_binary_data(args)
+                self.type = BINARY
 
     def list_requests(self, reqtype):
         for i in self.raw_data:
@@ -311,11 +328,7 @@ class QEMUBinaryInfo:
             yield m['request'][1]
 
     def __str__(self):
-        if self.datafile:
-            return '[file %s]' % (self.datafile)
-        else:
-            return '[binary %s]' % (self.binary)
-
+        return self.path
 
 def build_omitted_prop_dict(binary):
     """Build list of property values for non-existing properties
@@ -516,25 +529,31 @@ def compare_binaries(args, b1, b2):
 def main():
     parser = argparse.ArgumentParser(
         description='Compare machine-type compatibility info between multiple QEMU binaries')
-    parser.add_argument('--qemu', '-Q', metavar='QEMU',
-                        help='QEMU binary to run', action='append', default=[])
     parser.add_argument('--machine', '-M', metavar='MACHINE',
                         help='machine-type to verify',
                         action='append', default=[], dest='machines')
-    parser.add_argument('--raw-file', metavar='FILE',
-                        help="Load raw JSON data from FILE",
-                        action='append', default=[])
     parser.add_argument('--device', '-D', metavar='DEVTYPE',
                         action='append', default=[], dest='devices',
                         help="Query info about a device type")
     parser.add_argument('--all-devices', action='store_true',
-                        help="Query info about all device types")
+                        help="Check properties for all device types")
     #parser.add_argument('--all-machines', action='store_true',
     #                    help="Verify all machine-types")
     parser.add_argument('-d', '--debug', dest='debug', action='store_true',
                         help="Enable debugging messages")
     parser.add_argument('-O', metavar='FILE', dest='dump_file',
                         help="Dump raw JSON data to FILE")
+
+    parser.add_argument('--qemu', '-Q', metavar='QEMU',
+                        dest='files',
+                        action='append', type=lambda f: (f, BINARY),
+                        help='QEMU binary to run')
+    parser.add_argument('--raw-file', metavar='FILE',
+                        dest='files',
+                        action='append', type=lambda f: (f, JSON),
+                        help="Load raw JSON data from FILE")
+    parser.add_argument('auto_files', metavar='FILE', nargs='*',
+                        help="QEMU binary or JSON dump file")
 
     args = parser.parse_args()
 
@@ -543,9 +562,11 @@ def main():
         lvl = DEBUG
     logging.basicConfig(stream=sys.stdout, level=lvl,
                         format='%(levelname)s: %(message)s')
-
-    binaries = [QEMUBinaryInfo(q) for q in args.qemu]
-    binaries.extend([QEMUBinaryInfo(datafile=f) for f in args.raw_file])
+    binaries = []
+    if args.files:
+        binaries.extend([QEMUBinaryInfo(f, t) for f,t in args.files])
+    if args.auto_files:
+        binaries.extend([QEMUBinaryInfo(f, AUTO) for f in args.auto_files])
 
     if not binaries:
         parser.error("At least one QEMU binary or JSON file needs to be provided")
@@ -556,6 +577,7 @@ def main():
         return 1
 
     for b in binaries:
+        logger.info("Loading data from %s", b)
         b.load_data(args)
 
     dbg("loaded data for all QEMU binaries")
