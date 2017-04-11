@@ -342,6 +342,13 @@ def build_omitted_prop_dict(binary):
         ('virtio-pci',           'disable-modern',                 True),
         ('virtio-pci',           'disable-legacy',                False),
         ('virtio-serial-device', 'emergency-write',               False),
+        # note that "any_layout" is registered at virtio-device, but
+        # alias properties are registered at virtio-pci subclasses.
+        # the compat_props properties, on the other hand, are set
+        # at the virtio-pci subclasses, so provide the omitted-proerty
+        # value for virtio-pci too.
+        ('virtio-device',        'any_layout',                    False),
+        ('virtio-pci',           'any_layout',                    False),
         ('fw_cfg_io',            'x-file-slots',                   0x10),
         ('fw_cfg_mem',           'x-file-slots',                   0x10),
         ('intel-iommu',          'x-buggy-eim',                    True),
