@@ -482,11 +482,11 @@ def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
 
             dbg("defval v1: %r, v2: %r", v1, v2)
 
-            # if we still don't know what was the default value, check our hardcoded
-            # list if known old values for properties
-            if v1 is None:
+            # if we still don't know what was the default value because the property
+            # is not known, lookup the omitted-properties dictionary
+            if v1 is None and pi1 is None:
                 v1 = omitted1.get(d, {}).get(p)
-            if v2 is None:
+            if v2 is None and pi2 is None:
                 v2 = omitted2.get(d, {}).get(p)
 
             dbg("omitted v1: %r, v2: %r", v1, v2)
