@@ -74,6 +74,7 @@ AUTO_GLOBALS = [
   'object_property_get_qobject',
   'object_property_iter_init',
   'object_property_iter_next',
+  'object_property_iter_free',
   'object_unref',
   'qbool_get_bool',
   'qbool_get_int',
@@ -407,15 +408,26 @@ def object_iter_props(obj):
         return
 
     if ObjectPropertyIterator:
-        iterptr = g_new0(ObjectPropertyIterator)
-        #dbg("iterptr: 0x%x", tolong(iterptr))
-        object_property_iter_init(iterptr, obj)
+        # we might have 2 different object property iterator APIs:
+        init_args = len(object_property_iter_init.type.fields())
+        assert init_args in [1, 2]
+        dbg("obj: 0x%x", tolong(obj))
+        if init_args == 2:
+            iterptr = g_new0(ObjectPropertyIterator)
+            dbg("iterptr: 0x%x", tolong(iterptr))
+            object_property_iter_init(iterptr, obj)
+        else:
+            iterptr = object_property_iter_init(obj)
         while True:
+            dbg("iterptr: 0x%x\n", tolong(iterptr))
             prop = object_property_iter_next(iterptr)
             if tolong(prop) == 0:
                 break
             yield prop
-        g_free(iterptr)
+        if init_args == 1:
+            object_property_iter_free(iterptr)
+        else:
+            g_free(iterptr)
     else:
         for p in qtailq_foreach(obj['properties'], 'node'):
             yield p
