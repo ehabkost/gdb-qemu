@@ -375,6 +375,15 @@ def build_omitted_prop_dict(binary):
         ('nec-usb-xhci',         'superspeed-ports-first',        False),
         ('nec-usb-xhci',         'force-pcie-endcap',              True),
         ('apic-common',          'legacy-instance-id',             True),
+        ('apic-common',          'version',                        0x11),
+        ('ioapic',               'version',                        0x11),
+        ('isa-fdc',              'fallback',                      '144'),
+        # we can't use intel-hda-generic here, because some QEMU versions
+        # didn't have a common intel-hda-generic class
+        ('intel-hda',            'old_msi_addr',                   True),
+        ('ich9-intel-hda',       'old_msi_addr',                   True),
+        ('e1000',                'mitigation',                    False),
+        ('e1000',                'extra_mac_registers',           False),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
