@@ -498,7 +498,7 @@ def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
                     yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machine)
             elif v2 is None:
                 if dt2 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s: machine %s" % (d, p, b2, machine)
+                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b2, machine)
             elif not compare_properties(pi1, v1, pi2, v2):
                 yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
             else:
