@@ -384,6 +384,7 @@ def build_omitted_prop_dict(binary):
         ('ich9-intel-hda',       'old_msi_addr',                   True),
         ('e1000',                'mitigation',                    False),
         ('e1000',                'extra_mac_registers',           False),
+        ('pci-bridge',           'shpc',                           True),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
