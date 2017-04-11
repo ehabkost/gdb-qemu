@@ -110,20 +110,21 @@ def parse_property_value(prop, value):
 
 def compare_properties(p1, v1, p2, v2):
     """Compare two property values, with some hacks to handle type mismatches"""
-    # intel-hda.msi had changed its type some time ago
+
+    # we need a special hack for OnOffAuto, because:
+    # 1) intel-hda.msi had changed its type from uint32_to OnOffAuto
+    # 2) virtio-pci.disable-legacy also changed from bool to OnOffAuto
     if p1 is not None \
-       and p1.get('type') == 'OnOffAuto' \
-       and type(v2) == int:
-        if v2 == 0:
+       and p1.get('type') == 'OnOffAuto':
+        if v2 == 0 or v2 == False:
             v2 = "off"
-        elif v2 == 1:
+        elif v2 == 1 or v2 == True:
             v2 = "on"
     if p2 is not None \
-       and p2.get('type') == 'OnOffAuto' \
-       and type(v1) == int:
-        if v1 == 0:
+       and p2.get('type') == 'OnOffAuto':
+        if v1 == 0 or v1 == False:
             v1 = "off"
-        elif v1 == 1:
+        elif v1 == 1 or v1 == True:
             v1 = "on"
     if p1 is None or p2 is None:
         v1 = str(v1)
