@@ -579,6 +579,7 @@ def handle_request(args, reqtype, *reqargs):
 def handle_requests(args):
     global CATCH_EXCEPTIONS
     if args.catch_exceptions:
+        execute("set unwindonsignal off")
         CATCH_EXCEPTIONS = True
     else:
         execute("set unwindonsignal on")
@@ -594,6 +595,8 @@ def handle_requests(args):
                 traceback.print_exc()
                 command_loop()
             tb = traceback.format_exc()
+            logger.debug("Traceback for request %r:", req)
+            logger.debug(tb)
             yield dict(request=req, exception=dict(type=str(type(e)), message=str(e)), traceback=tb)
 
 
