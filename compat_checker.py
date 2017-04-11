@@ -27,7 +27,7 @@ import qmp
 from logging import DEBUG, INFO, WARN, ERROR, CRITICAL
 
 MYDIR = os.path.dirname(__file__)
-GDB_EXTRACTOR = os.path.join(MYDIR, 'extract-qemu-info.py')
+GDB_EXTRACTOR = os.path.join(MYDIR, 'gdb-extract-qemu-info.py')
 
 logger = logging.getLogger('compat-checker')
 dbg = logger.debug
