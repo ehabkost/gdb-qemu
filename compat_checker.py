@@ -324,6 +324,7 @@ def build_omitted_prop_dict(binary):
     """
     OMITTED_PROP_VALUES = [
         ('pci-device',           'x-pcie-extcap-init',            False),
+        ('pci-device',           'x-pcie-lnksta-dllla',           False),
         ('x86_64-cpu',           'kvm-no-smi-migration',           True),
         ('i386-cpu',             'kvm-no-smi-migration',           True),
         ('x86_64-cpu',           'full-cpuid-auto-level',         False),
@@ -334,11 +335,20 @@ def build_omitted_prop_dict(binary):
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),
         ('virtio-pci',           'x-pcie-deverr-init',            False),
         ('virtio-pci',           'x-ignore-backend-features',      True),
+        ('virtio-pci',           'x-disable-pcie',                 True),
+        ('virtio-pci',           'virtio-pci-bus-master-bug-migration', True),
+        ('virtio-pci',           'page-per-vq',                    True),
+        ('virtio-pci',           'migrate-extra',                  True),
+        ('virtio-pci',           'disable-modern',                 True),
+        ('virtio-pci',           'disable-legacy',                False),
         ('virtio-serial-device', 'emergency-write',               False),
         ('fw_cfg_io',            'x-file-slots',                   0x10),
         ('fw_cfg_mem',           'x-file-slots',                   0x10),
         ('intel-iommu',          'x-buggy-eim',                    True),
         ('kvmclock',             'x-mach-use-reliable-get-clock', False),
+        ('xio3130-downstream',   'power_controller_present',      False),
+        ('ioh3420',              'power_controller_present',      False),
+        ('vmxnet3',              'x-disable-pcie',                 True),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
