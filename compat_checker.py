@@ -328,8 +328,8 @@ class QEMUBinaryInfo:
             if m['request'][1:] == list(args):
                 return m.get('result')
 
-    def get_machine(self, machine):
-        return self.get_one_request('machine', machine)
+    def get_machine(self, machinename):
+        return self.get_one_request('machine', machinename)
 
     def get_devtype(self, devtype):
         return self.get_one_request('device-type', devtype)
@@ -441,7 +441,7 @@ def build_omitted_prop_dict(binary):
 
     return r
 
-def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
+def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
     compat1 = {}
     compat2 = {}
     apply_compat_props(b1, compat1, m1['compat_props'])
@@ -481,11 +481,11 @@ def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
             if pi1 is not None: # found property info
                 v1 = parse_property_value(pi1, v1)
             elif v1 is not None and dt1 is not None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machine)
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machinename)
             if pi2 is not None: # found property info
                 v2 = parse_property_value(pi2, v2)
             elif v2 is not None and dt2 is not None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machine)
+                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machinename)
 
             dbg("parsed v1: %r, v2: %r", v1, v2)
 
@@ -511,24 +511,24 @@ def compare_machine_compat_props(args, b1, b2, machine, m1, m2):
             # really supported by the machine-type
             if v1 is None:
                 if dt1 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machine)
+                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machinename)
             elif v2 is None:
                 if dt2 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b2, machine)
+                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b2, machinename)
             elif not compare_properties(pi1, v1, pi2, v2):
-                yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machine, d, p, v1, v2)
+                yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machinename, d, p, v1, v2)
             else:
-                yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machine, d, p, v1, v2)
+                yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machinename, d, p, v1, v2)
 
-def compare_machine(args, b1, b2, machine):
-    m1 = b1.get_machine(machine)
-    m2 = b2.get_machine(machine)
+def compare_machine(args, b1, b2, machinename):
+    m1 = b1.get_machine(machinename)
+    m2 = b2.get_machine(machinename)
     if m1 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b1, machine))
+        raise Exception("%s doesn't have info about machine %s" % (b1, machinename))
     if m2 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b2, machine))
+        raise Exception("%s doesn't have info about machine %s" % (b2, machinename))
 
-    for e in compare_machine_compat_props(args, b1, b2, machine, m1, m2):
+    for e in compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
         yield e
 
 def compare_binaries(args, b1, b2):
