@@ -347,8 +347,8 @@ def build_omitted_prop_dict(binary):
     This builds a dictionary containing the assumed values for properties
     that don't exist in the existing binary (i.e. if it is a QEMU version
     that is old and didn't have the property yet). The returned dictionary
-    will contain the value required to emulate QEMU behavior when the
-    property didn't exist yet.
+    will contain the value required to emulate the behavior QEMU had when
+    the property didn't exist yet.
     """
     OMITTED_PROP_VALUES = [
         ('pci-device',           'x-pcie-extcap-init',            False),
@@ -520,6 +520,106 @@ def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
             else:
                 yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machinename, d, p, v1, v2)
 
+
+# we can't use None to indicate unknown value, because we can
+# really have fields set to NULL
+UNKNOWN_VALUE = object()
+
+def get_omitted_machine_field(m, field):
+    """Returns what value should be present in a MachineClass struct field
+    to emulate QEMU's behavior when the field didn't exist yet
+    """
+    if field == 'minimum_page_bits':
+        return 0
+    elif field == 'numa_mem_align_shift':
+        return 23
+    elif field == 'default_ram_size':
+        return 128 * 1024*1024
+    #elif field == 'query_hotpluggable_cpus':
+    #    return '<machine_query_hotpluggable_cpus>' \
+    #           if m.get('has_hotpluggable_cpus') \
+    #           else None
+    #elif field == 'has_hotpluggable_cpus':
+    #    return (m.get('has_hotpluggable_cpus') is not None)
+
+    return UNKNOWN_VALUE
+
+def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
+
+    # our comparison functions:
+    def simple_compare(v1, v2):
+        return v1 == v2
+
+    def compare_func_name(v1, v2):
+        func_re = re.compile('<([^>]*)>')
+        fname1 = v1 and func_re.search(v1).group(1)
+        fname2 = v2 and func_re.search(v2).group(1)
+        return fname1 == fname2
+
+    def compare_nullness(v1, v2):
+        """Just check if both values are NULL or non-NULL"""
+        return (v1 is None) == (v2 is None)
+
+    fields = set(m1.keys() + m2.keys())
+
+    KNOWN_FIELDS = {
+        # function pointers:
+        'hot_add_cpu': compare_func_name,
+        'init': compare_func_name,
+        'get_hotplug_handler': compare_func_name,
+        'possible_cpu_arch_ids': compare_func_name,
+        'reset': compare_func_name,
+        'cpu_index_to_socket_id': compare_func_name,
+
+        # compat_props is checked separately by compare_machine_compat_props()
+        'compat_props': None,
+
+        # things we skip and won't try to validate:
+
+        #TODO: this script doesn't know yet how to compare hotpluggable-CPUs
+        # data between different QEMU versions
+        'query_hotpluggable_cpus': None,
+        'has_hotpluggable_cpus': None,
+        #TODO: script doesn't know what to do with 'reset' function pointer, either:
+        'reset': None,
+
+        # alias/is_default won't affect the machine ABI:
+        'alias': None, # ignore field
+        'is_default': None,
+        'family': None,
+
+        # QOM stuff we can ignore:
+        'parent_class': None,
+        'next': None,
+    }
+
+    for f in fields:
+        compare_func = KNOWN_FIELDS.get(f, simple_compare)
+        if compare_func is None:
+            continue
+
+        if f in m1:
+            v1 = m1[f]
+        else:
+            v1 = get_omitted_machine_field(m1, f)
+
+        if f in m2:
+            v2 = m2[f]
+        else:
+            v2 = get_omitted_machine_field(m2, f)
+
+        if v1 is UNKNOWN_VALUE:
+            yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b1, f, machinename)
+        if v2 is UNKNOWN_VALUE:
+            yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b2, f, machinename)
+
+        if v1 is not UNKNOWN_VALUE and v2 is not UNKNOWN_VALUE:
+            dbg("will compare machine.%s: %r vs %r", f, v1, v2)
+            if compare_func(v1, v2):
+                yield DEBUG, 'machine.%s is OK' % (f)
+            else:
+                yield ERROR, "%s vs %s: machine %s: difference at machine.%s (%r != %r)" % (b1, b2, machinename, f, v1, v2)
+
 def compare_machine(args, b1, b2, machinename):
     m1 = b1.get_machine(machinename)
     m2 = b2.get_machine(machinename)
@@ -528,6 +628,8 @@ def compare_machine(args, b1, b2, machinename):
     if m2 is None:
         raise Exception("%s doesn't have info about machine %s" % (b2, machinename))
 
+    for e in compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
+        yield e
     for e in compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
         yield e
 
