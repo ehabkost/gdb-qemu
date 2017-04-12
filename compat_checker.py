@@ -563,14 +563,6 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
     fields = set(m1.keys() + m2.keys())
 
     KNOWN_FIELDS = {
-        # function pointers:
-        'hot_add_cpu': compare_func_name,
-        'init': compare_func_name,
-        'get_hotplug_handler': compare_func_name,
-        'possible_cpu_arch_ids': compare_func_name,
-        'reset': compare_func_name,
-        'cpu_index_to_socket_id': compare_func_name,
-
         # compat_props is checked separately by compare_machine_compat_props()
         'compat_props': None,
 
@@ -582,6 +574,12 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         'has_hotpluggable_cpus': None,
         #TODO: script doesn't know what to do with 'reset' function pointer, either:
         'reset': None,
+        #TODO: other functions we don't know how to compare:
+        'hot_add_cpu': None,
+        'init': None,
+        'get_hotplug_handler': None,
+        'possible_cpu_arch_ids': None,
+        'cpu_index_to_socket_id': None,
 
         # alias/is_default won't affect the machine ABI:
         'alias': None, # ignore field
