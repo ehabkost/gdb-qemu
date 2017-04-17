@@ -633,7 +633,7 @@ def start_qemu(kill=False):
     dbg("ran!")
 
     if fm.hit_count < 1:
-        raise Exception("Didn't hit the find_machine breakpoint :(")
+        raise Exception("Didn't hit the find_machine breakpoint. Is debuginfo available for the QEMU binary?")
     
     # make sure it's safe to call find_machine() later:
     fm.enabled = False
