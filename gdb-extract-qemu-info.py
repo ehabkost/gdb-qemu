@@ -408,10 +408,21 @@ def object_iter_props(obj):
         return
 
     if ObjectPropertyIterator:
+        dbg("iterinit: %s, type: %s", object_property_iter_init, object_property_iter_init.type)
+        dbg("iterinit type dir: %r", dir(object_property_iter_init.type))
+
         # we might have 2 different object property iterator APIs:
-        init_args = len(object_property_iter_init.type.fields())
-        assert init_args in [1, 2]
+        #init_args = len(object_property_iter_init.type.fields())
+        #assert init_args in [1, 2]
+        # unfortunately GDB 7.6.1-80.el7 doesn't support
+        # type.fields() on functions, so we need to check the
+        # string representation of the function type:
         dbg("obj: 0x%x", tolong(obj))
+        if '(ObjectPropertyIterator *, Object *)' in str(object_property_iter_init.type):
+            init_args = 2
+        else:
+            init_args = 1
+
         if init_args == 2:
             iterptr = g_new0(ObjectPropertyIterator)
             dbg("iterptr: 0x%x", tolong(iterptr))
