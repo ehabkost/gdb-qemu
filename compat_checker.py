@@ -118,9 +118,9 @@ def compare_properties(p1, v1, p2, v2):
     # 2) virtio-pci.disable-legacy also changed from bool to OnOffAuto
     if p1 is not None \
        and p1.get('type') == 'OnOffAuto':
-        if v2 == 0 or v2 == False:
+        if v2 in [0, False, '0']:
             v2 = "off"
-        elif v2 == 1 or v2 == True:
+        elif v2 in [1, True, '1']:
             v2 = "on"
     if p2 is not None \
        and p2.get('type') == 'OnOffAuto':
