@@ -124,9 +124,9 @@ def compare_properties(p1, v1, p2, v2):
             v2 = "on"
     if p2 is not None \
        and p2.get('type') == 'OnOffAuto':
-        if v1 == 0 or v1 == False:
+        if v1 in [0, False, '0']:
             v1 = "off"
-        elif v1 == 1 or v1 == True:
+        elif v1 in [1, True, '1']:
             v1 = "on"
 
     # try string comparison if we really don't know anything about
