@@ -35,9 +35,14 @@ dbg = logger.debug
 # devices that can make gdb crash if querying instance properties:
 UNSAFE_DEVICES = set(['i440FX-pcihost', 'pc-dimm', 'q35-pcihost'])
 
-def apply_compat_props(binary, d, compat_props):
+def apply_compat_props(binary, machinename, d, compat_props):
+    items = set()
     """Apply a list of compat_props to a d[driver][property] dictionary"""
     for cp in compat_props:
+        item = (cp['driver'], cp['property'], cp['value'])
+        if item in items:
+            logger.warn("%s:%s: duplicate compat property: %s.%s=%s", binary, machinename, item[0], item[1], item[2])
+        items.add(item)
         # translate each compat property to all the subtypes
         t = cp['driver']
         qmp_info = binary.get_one_request('qmp-info') or {}
@@ -423,7 +428,7 @@ def build_omitted_prop_dict(binary):
     ]
 
     r = {}
-    apply_compat_props(binary, r, (dict(driver=d, property=p, value=v) for (d, p, v) in OMITTED_PROP_VALUES))
+    apply_compat_props(binary, '<omitted-props>', r, (dict(driver=d, property=p, value=v) for (d, p, v) in OMITTED_PROP_VALUES))
 
     #XXX: this one can't be solved without looking at
     # commit 39c88f56977f9ad2451444d70dd21d8189d74f99 (v2.8.0-rc0~137^2)
@@ -437,15 +442,15 @@ def build_omitted_prop_dict(binary):
         # if vmsd value is known and vmsd was NULL, we know we're running a version that
         # didn't migrate pcspk data:
         migrate = (dt['vmsd'] is not None)
-        apply_compat_props(binary, r, [dict(driver='isa-pcspk', property='migrate', value=migrate)])
+        apply_compat_props(binary, '<omitted-props>', r, [dict(driver='isa-pcspk', property='migrate', value=migrate)])
 
     return r
 
 def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
     compat1 = {}
     compat2 = {}
-    apply_compat_props(b1, compat1, m1['compat_props'])
-    apply_compat_props(b2, compat2, m2['compat_props'])
+    apply_compat_props(b1, machinename, compat1, m1['compat_props'])
+    apply_compat_props(b2, machinename, compat2, m2['compat_props'])
 
     omitted1 = build_omitted_prop_dict(b1)
     omitted2 = build_omitted_prop_dict(b2)
