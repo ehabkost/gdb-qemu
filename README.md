@@ -10,9 +10,10 @@ Before running the scripts please install the following packages:
 2. gdb
 3. qemu-kvm-debuginfo
 
-E.g. in Fedora
-yum install gcc gdb
-rpm -i qemu-kvm-debuginfo....rpm
+E.g. in Fedora:
+
+    $ yum install gcc gdb
+    $ rpm -i qemu-kvm-debuginfo....rpm
 
 ## Collecting JSON dumps
 
