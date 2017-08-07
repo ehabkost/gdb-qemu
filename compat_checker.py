@@ -21,6 +21,15 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
+
+#
+# 2017 Deepak Verma <dverma@redhat.com>
+#
+
+#
+# ./compat_checker.py /usr/libexec/qemu-kvm -E 'm' -E 'd' -E 'c' -E 'h' -O aa.json
+#
+
 import sys, argparse, logging, subprocess, json, os, platform, socket
 import difflib, pprint, tempfile, shutil, re
 import qmp
@@ -259,14 +268,28 @@ class QEMUBinaryInfo:
             implements[d['name']] = qmp.command('qom-list-types', implements=d['name'])
         return implements
 
-    def query_qmp_info(self):
+    def query_qmp_info(self, choices):
         qmp = self.get_qmp()
-        machines = qmp.command('query-machines')
-        devices = qmp.command('qom-list-types', implements='device', abstract=True)
-        cpu_models = qmp.command('query-cpu-definitions')
-        devtype_hierarchy = self.query_full_devtype_hierarchy()
-        return {'machines':machines, 'devices':devices, 'cpu-models':cpu_models,
-                'devtype-hierarchy':devtype_hierarchy }
+        machine = {}
+        devices = {}
+        cpu_models = {}
+        devtype_hierarchy = {}
+
+        if 'm' in choices:
+            machines = qmp.command('query-machines')
+
+        if 'd' in choices:
+            devices = qmp.command('qom-list-types', implements='device', abstract=True)
+
+        if 'c' in choices:
+            cpu_models = qmp.command('query-cpu-definitions')
+
+        if 'h' in choices:
+            devtype_hierarchy = self.query_full_devtype_hierarchy()
+
+        answer = {'machines': machines, 'devices': devices, 'cpu-models': cpu_models,
+                'devtype-hierarchy': devtype_hierarchy}
+        return answer
 
     def append_raw_item(self, reqtype, result, args=[]):
         self.raw_data.append(dict(request=[reqtype] + list(args), result=result))
@@ -289,7 +312,14 @@ class QEMUBinaryInfo:
         self.append_raw_item('cpu-help', self.get_stdout('-cpu', 'help'))
         self.append_raw_item('hostname', {'platform.node': platform.node(),
                                           'gethostname': socket.gethostname()})
-        qmp_info = self.query_qmp_info()
+
+        # to enable only one component pass that as command line argument
+        # else all the of them would run by default.
+        if args.enable:
+            qmp_info = self.query_qmp_info(args.enable)
+        else:
+            qmp_info = self.query_qmp_info(['m', 'd', 'd', 'h'])
+
         self.append_raw_item('qmp-info', qmp_info)
         if not args.machines:
             machines = sorted([m['name'] for m in qmp_info['machines']])
@@ -573,13 +603,13 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
 
         # things we skip and won't try to validate:
 
-        #TODO: this script doesn't know yet how to compare hotpluggable-CPUs
+        # TODO: this script doesn't know yet how to compare hotpluggable-CPUs
         # data between different QEMU versions
         'query_hotpluggable_cpus': None,
         'has_hotpluggable_cpus': None,
-        #TODO: script doesn't know what to do with 'reset' function pointer, either:
+        # TODO: script doesn't know what to do with 'reset' function pointer, either:
         'reset': None,
-        #TODO: other functions we don't know how to compare:
+        # TODO: other functions we don't know how to compare:
         'hot_add_cpu': None,
         'init': None,
         'get_hotplug_handler': None,
@@ -642,7 +672,7 @@ def compare_binaries(args, b1, b2):
         machines = set(b1.available_machines())
         machines.intersection_update(b2.available_machines())
     for m in machines:
-        dbg("will compare machine %s in binaries: %s and %s", m, b1, b2)
+        logger.info("Will compare machine %s in binaries: %s and %s", m, b1, b2)
         for error in compare_machine(args, b1, b2, m):
             yield error
 
@@ -674,6 +704,9 @@ def main():
                         help="Load raw JSON data from FILE")
     parser.add_argument('auto_files', metavar='FILE', nargs='*',
                         help="QEMU binary or JSON dump file")
+    parser.add_argument('--enable', '-E', metavar='ENABLE',
+                        action='append', default=[], dest='enable',
+                        help="-E 'm' -E 'h' -E 'd' -E 'c'")
 
     args = parser.parse_args()
 
