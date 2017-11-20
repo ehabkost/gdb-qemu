@@ -555,6 +555,8 @@ def get_omitted_machine_field(m, field):
         return 23
     elif field == 'default_ram_size':
         return 128 * 1024*1024
+    elif field == 'auto_enable_numa_with_memhp':
+        return False
     #elif field == 'query_hotpluggable_cpus':
     #    return '<machine_query_hotpluggable_cpus>' \
     #           if m.get('has_hotpluggable_cpus') \
