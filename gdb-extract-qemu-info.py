@@ -107,6 +107,7 @@ AUTO_GLOBALS = [
   (T, 'QFloat'),
   (T, 'QInt'),
   (T, 'QString'),
+  (T, 'QEnumLookup'),
 ]
 
 def register_auto_globals():
@@ -348,6 +349,19 @@ def compat_props(mi):
     else:
         raise Exception("unsupported compat_props type: %s" % (cp.type))
 
+def enum_lookup(propinfo, val):
+    tbl_type = propinfo['enum_table'].type.target().unqualified()
+    if tbl_type == char.pointer():
+        array = propinfo['enum_table']
+    elif tbl_type == QEnumLookup:
+        array = propinfo['enum_table']['array']
+        if val > propinfo['enum_table']['size']:
+            raise Exception("Invalid enum value %r (array size is %d)" % \
+                            (val, propinfo['enum_table']['size']))
+    else:
+        raise Exception("I don't know how to do enum lookup for %s", propinfo)
+    return (array + tolong(val)).dereference().string()
+
 def prop_info(prop):
     """Return dictionary containing information for qdev Property struct"""
     r = value_to_dict(prop, follow_pointers={'info':True})
@@ -360,7 +374,7 @@ def prop_info(prop):
         if tolong(prop['qtype']) == tolong(QTYPE_QBOOL):
             r['defval'] = bool(defval)
         elif tolong(prop['info']['enum_table']) != 0:
-            r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
+            r['defval'] = enum_lookup(prop['info'], defval)
         elif tolong(prop['qtype']) == tolong(QTYPE_QINT):
             r['defval'] = tolong(defval)
         else: # default value won't have any effect
@@ -376,7 +390,7 @@ def prop_info(prop):
         if tolong(prop['info']['set_default_value']) == 0:
             del r['defval']
         elif '<set_default_value_enum>' in fn:
-            r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
+            r['defval'] = enum_lookup(prop['info'], defval)
         elif '<set_default_value_bool>' in fn:
             r['defval'] = bool(defval)
         elif '<set_default_value_int>' in fn:
