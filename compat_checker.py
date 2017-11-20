@@ -425,6 +425,14 @@ def build_omitted_prop_dict(binary):
         ('e1000',                'mitigation',                    False),
         ('e1000',                'extra_mac_registers',           False),
         ('pci-bridge',           'shpc',                           True),
+        # commit 5e89dc01133f8f5e621f6b66b356c6f37d31dafb:
+        ('i82559a',              'x-use-alt-device-id',           False),
+        # commit 9fa99d2519cbf71f871e46871df12cb446dc1c3e:
+        ('i440FX-pcihost',       'x-pci-hole64-fix',              False),
+        ('q35-pcihost',          'x-pci-hole64-fix',              False),
+        # commit f4924974c7c72560f68ab298ac25a525a28a2124:
+        ('virtio-mouse-device',  'wheel-axis',                    False),
+        ('virtio-tablet-device', 'wheel-axis',                    False),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
