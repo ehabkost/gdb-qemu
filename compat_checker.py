@@ -371,6 +371,10 @@ def build_omitted_prop_dict(binary):
         ('i386-cpu',             'l3-cache',                      False),
         ('x86_64-cpu',           'fill-mtrr-mask',                False),
         ('i386-cpu',             'fill-mtrr-mask',                False),
+        # commit 6c69dfb67e84747cf071958594d939e845dfcc0c:
+        ('x86_64-cpu',           'x-hv-max-vps', 0x40),
+        ('i386-cpu',             'x-hv-max-vps', 0x40),
+
         ('virtio-pci',           'x-pcie-pm-init',                False),
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),
         ('virtio-pci',           'x-pcie-deverr-init',            False),
