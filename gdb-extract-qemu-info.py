@@ -40,11 +40,18 @@ dbg = logger.debug
 
 
 CATCH_EXCEPTIONS = False
+
+# Properties that are known to crash when calling object_property_get*()
+# on some QEMU versions:
 UNSAFE_PROPS = set(['i440FX-pcihost.pci-hole64-end',
                     'i440FX-pcihost.pci-hole64-start',
                     'q35-pcihost.pci-hole64-end',
                     'q35-pcihost.pci-hole64-start',
-                    'pc-dimm.size'])
+                    'pc-dimm.size',
+                    'nvdimm.size',
+                    'ICH9-LPC.sci_int'])
+UNSAFE_TYPES = set(['host-x86_64-cpu',
+                    'host-i386-cpu'])
 
 ##########################
 # Generic helper functions
@@ -524,6 +531,10 @@ def object_prop_get_value(devtype, obj, prop, p):
 def object_class_instance_props(devtype, oc):
     """Try to query QOM properties available when actual instantiating an object"""
     assert not bool(object_class_is_abstract(oc))
+
+    if devtype in UNSAFE_TYPES:
+        dbg("skipping unsafe type: %s", devtype)
+        return
 
     obj = object_new(c_string(devtype))
     #dbg("obj: 0x%x: %s", tolong(obj), obj.dereference())
