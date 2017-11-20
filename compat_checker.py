@@ -36,13 +36,13 @@ dbg = logger.debug
 UNSAFE_DEVICES = set(['i440FX-pcihost', 'pc-dimm', 'q35-pcihost'])
 
 def apply_compat_props(binary, machinename, d, compat_props):
-    items = set()
+    values = {}
     """Apply a list of compat_props to a d[driver][property] dictionary"""
     for cp in compat_props:
-        item = (cp['driver'], cp['property'], cp['value'])
-        if item in items:
-            logger.warn("%s:%s: duplicate compat property: %s.%s=%s", binary, machinename, item[0], item[1], item[2])
-        items.add(item)
+        key = (cp['driver'], cp['property'])
+        if values.get(key) == cp['value']:
+            logger.warn("%s:%s: duplicate compat property: %s.%s=%s", binary, machinename, cp['driver'], cp['property'], cp['value'])
+        values[key] = cp['value']
         # translate each compat property to all the subtypes
         t = cp['driver']
         qmp_info = binary.get_one_request('qmp-info') or {}
