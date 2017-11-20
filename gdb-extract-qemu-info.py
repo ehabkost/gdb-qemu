@@ -99,6 +99,7 @@ AUTO_GLOBALS = [
   (T, 'GArray'),
   (T, 'GlobalProperty'),
   (T, 'long'),
+  (T, 'ulong', 'unsigned long'),
   (T, 'MachineClass'),
   (T, 'ObjectClass'),
   (T, 'ObjectPropertyIterator'),
@@ -185,6 +186,10 @@ def type_code_name(code):
 def tolong(v):
     """Return value as long int"""
     return int(v.cast(long))
+
+def toulong(v):
+    """Return value as unsigned long int"""
+    return int(v.cast(ulong))
 
 def enumerate_fields(t):
     """Enumerate fields of a struct type, recursively
@@ -347,15 +352,42 @@ def prop_info(prop):
     """Return dictionary containing information for qdev Property struct"""
     r = value_to_dict(prop, follow_pointers={'info':True})
 
-    defval = prop['defval']
-    if tolong(prop['qtype']) == tolong(QTYPE_QBOOL):
-        r['defval'] = bool(defval)
-    elif tolong(prop['info']['enum_table']) != 0:
-        r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
-    elif tolong(prop['qtype']) == tolong(QTYPE_QINT):
-        r['defval'] = tolong(defval)
-    else: # default value won't have any effect
-        del r['defval']
+    # fixup defval according to property type:
+
+    if find_field(prop, 'qtype'):
+        # old interface: Property::qtype:
+        defval = prop['defval']
+        if tolong(prop['qtype']) == tolong(QTYPE_QBOOL):
+            r['defval'] = bool(defval)
+        elif tolong(prop['info']['enum_table']) != 0:
+            r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
+        elif tolong(prop['qtype']) == tolong(QTYPE_QINT):
+            r['defval'] = tolong(defval)
+        else: # default value won't have any effect
+            del r['defval']
+    elif find_field(prop['info'], 'set_default_value'):
+        # new interface: PropertyInfo::set_default_value:
+        # implemented by commit a2740ad584839ac84f3cdb2d928de93a0d7f4e72
+        fn = str(prop['info']['set_default_value'])
+        defval = prop['defval']
+        if defval.type.code == gdb.TYPE_CODE_UNION:
+            defval = defval['i']
+
+        if tolong(prop['info']['set_default_value']) == 0:
+            del r['defval']
+        elif '<set_default_value_enum>' in fn:
+            r['defval'] = (prop['info']['enum_table'] + tolong(defval)).dereference().string()
+        elif '<set_default_value_bool>' in fn:
+            r['defval'] = bool(defval)
+        elif '<set_default_value_int>' in fn:
+            r['defval'] = tolong(defval)
+        elif '<set_default_value_uint>' in fn:
+            r['defval'] = toulong(defval)
+        else:
+            raise Exception("I don't know how to extract default value for property %r", r)
+    else:
+        raise Exception("I don't know how to extract default value for property %r", r)
+
     return r
 
 def dev_class_props(dc):
