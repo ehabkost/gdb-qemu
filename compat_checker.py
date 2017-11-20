@@ -481,6 +481,7 @@ def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
     for d in devices_to_check:
         cp1 = compat1.get(d, {})
         cp2 = compat2.get(d, {})
+        #TODO: add option to compare all properties, not just the ones on compat_checker
         for p in set(cp1.keys() + cp2.keys()):
             dbg("will compare %s.%s", d, p)
             dt1 = b1.get_devtype(d)
