@@ -555,9 +555,30 @@ def get_omitted_machine_field(m, field):
         'numa_mem_align_shift': 23,
         'default_ram_size': 128 * 1024*1024,
         'auto_enable_numa_with_memhp': False,
+
+        # default_boot_order and boot_order are equivalent:
+        'default_boot_order': m.get('boot_order', UNKNOWN_VALUE),
+        'boot_order': m.get('default_boot_order', UNKNOWN_VALUE),
+
+        'units_per_default_bus': 0,
+        'has_dynamic_sysbus': 0,
+        'default_display': None,
+        'pci_allow_0_address': 0,
     }
 
     return OMITTED_MACHINE_FIELDS.get(field, UNKNOWN_VALUE)
+
+def fixup_machine_field(m, field, v):
+    """Fixup some machine fields when we know they won't match on some machine-types"""
+
+    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', m['name']) and v == 255:
+        #rhel6.* machine-types had max_cpus=255 on qemu-kvm-1.5.3:
+        #TODO: probably not a bug, but we need to confirm that:
+        return 240
+    elif m['name'] == 'none' and re.match('(|default_)boot_order', field):
+        # boot order doesn't matter for -machine none
+        return None
+    return v
 
 def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
 
@@ -597,6 +618,7 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         'cpu_index_to_socket_id': None,
         'cpu_index_to_instance_props': None,
         'numa_auto_assign_ram': None,
+        'kvm_type': None,
 
         # alias/is_default won't affect the machine ABI:
         'alias': None, # ignore field
@@ -622,6 +644,9 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
             v2 = m2[f]
         else:
             v2 = get_omitted_machine_field(m2, f)
+
+        v1 = fixup_machine_field(m1, f, v1)
+        v2 = fixup_machine_field(m1, f, v2)
 
         if v1 is UNKNOWN_VALUE:
             yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b1, f, machinename)
