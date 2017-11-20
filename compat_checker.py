@@ -454,8 +454,8 @@ def build_omitted_prop_dict(binary):
     r = {}
     apply_compat_props(binary, '<omitted-props>', r, (dict(driver=d, property=p, value=v) for (d, p, v) in OMITTED_PROP_VALUES))
 
-    #XXX: this one can't be solved without looking at
-    # commit 39c88f56977f9ad2451444d70dd21d8189d74f99 (v2.8.0-rc0~137^2)
+    #XXX: this one can't be solved without looking at other information:
+    # Between commit 39c88f56977f9ad2451444d70dd21d8189d74f99 (v2.8.0-rc0~137^2)
     # and 04e27c6bb034e57e60739362a90bc11a4d6f3ad4 (v2.8.0-rc2~5^2~2)
     # QEMU do _not_ have the property available, but it will
     # include the pcspk migration section in the migration stream.
