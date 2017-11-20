@@ -359,7 +359,7 @@ def enum_lookup(propinfo, val):
             raise Exception("Invalid enum value %r (array size is %d)" % \
                             (val, propinfo['enum_table']['size']))
     else:
-        raise Exception("I don't know how to do enum lookup for %s", propinfo)
+        raise Exception("I don't know how to do enum lookup for %s" % (propinfo))
     return (array + tolong(val)).dereference().string()
 
 def prop_info(prop):
