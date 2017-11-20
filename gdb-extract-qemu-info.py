@@ -51,7 +51,8 @@ UNSAFE_PROPS = set(['i440FX-pcihost.pci-hole64-end',
                     'nvdimm.size',
                     'ICH9-LPC.sci_int'])
 UNSAFE_TYPES = set(['host-x86_64-cpu',
-                    'host-i386-cpu'])
+                    'host-i386-cpu',
+                    'tpm-tis'])
 
 ##########################
 # Generic helper functions
