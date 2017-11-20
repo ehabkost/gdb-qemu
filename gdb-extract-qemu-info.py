@@ -351,7 +351,7 @@ def compat_props(mi):
 
 def enum_lookup(propinfo, val):
     tbl_type = propinfo['enum_table'].type.target().unqualified()
-    if tbl_type == char.pointer():
+    if tbl_type == char.const().pointer():
         array = propinfo['enum_table']
     elif tbl_type == QEnumLookup:
         array = propinfo['enum_table']['array']
