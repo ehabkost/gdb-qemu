@@ -18,6 +18,16 @@ The scripts doesn't know what to expect on properties that were not present
 in older QEMU versions, and prints _"I don't know the default value of ..."_
 warnings.  This can be addressed by adding new entires to `OMITTED_PROP_VALUES`.
 
+## Caveats
+
+### Ordering matters
+
+Running `./compat_checker.py A B C D` checks if:
+
+* `B`, `C` and `D` can emulate `A` properly
+* `C` and `D` can emulate `B` properly
+* `D` can emulate `C` properly
+
 # Instructions
 
 ## Collecting JSON dumps
