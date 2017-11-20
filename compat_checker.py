@@ -588,6 +588,8 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         'get_hotplug_handler': None,
         'possible_cpu_arch_ids': None,
         'cpu_index_to_socket_id': None,
+        'cpu_index_to_instance_props': None,
+        'numa_auto_assign_ram': None,
 
         # alias/is_default won't affect the machine ABI:
         'alias': None, # ignore field
