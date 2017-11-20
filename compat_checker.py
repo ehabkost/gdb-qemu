@@ -646,9 +646,11 @@ def compare_machine(args, b1, b2, machinename):
     m1 = b1.get_machine(machinename)
     m2 = b2.get_machine(machinename)
     if m1 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b1, machinename))
+        logger.warn("%s doesn't have info about machine %s" % (b1, machinename))
+        return
     if m2 is None:
-        raise Exception("%s doesn't have info about machine %s" % (b2, machinename))
+        logger.warn("%s doesn't have info about machine %s" % (b2, machinename))
+        return
 
     for e in compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         yield e
