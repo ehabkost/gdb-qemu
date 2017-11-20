@@ -3,6 +3,23 @@
 Scripts to extract data from a QEMU binary and compare machine-
 type compatibility between different QEMU binaries.
 
+## Why GDB?
+
+The scripts in this repository use GDB to extract information that is not
+provided through QMP commands.  In other words, this is a workaround to
+limitations in the QMP introspection interfaces provided by QEMU.
+
+## Limitations
+
+There are a few errors reported on the x86 CPU `min-*level` properties that are
+likely to be false positives.  This needs to be investigated.
+
+The scripts doesn't know what to expect on properties that were not present
+in older QEMU versions, and prints _"I don't know the default value of ..."_
+warnings.  This can be addressed by adding new entires to `OMITTED_PROP_VALUES`.
+
+# Instructions
+
 ## Collecting JSON dumps
 
 To collect data from a single QEMU binary and save it in a JSON
