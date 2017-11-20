@@ -575,9 +575,13 @@ def fixup_machine_field(m, field, v):
         #rhel6.* machine-types had max_cpus=255 on qemu-kvm-1.5.3:
         #TODO: probably not a bug, but we need to confirm that:
         return 240
-    elif m['name'] == 'none' and re.match('(|default_)boot_order', field):
+    elif m['name'] == 'none' and \
+         re.match('(|default_)boot_order|default_ram_size|block_default_type|max_cpus', field):
         # boot order doesn't matter for -machine none
         return None
+    elif field == 'default_display' and v is None:
+        # default_display= NULL and default_display="cirrus" are (supposed to be) equivalent
+        return 'cirrus'
     return v
 
 def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
