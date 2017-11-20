@@ -362,6 +362,9 @@ def build_omitted_prop_dict(binary):
         ('i386-cpu',             'kvm-no-smi-migration',           True),
         ('x86_64-cpu',           'full-cpuid-auto-level',         False),
         ('i386-cpu',             'full-cpuid-auto-level',         False),
+        # tcg-cpuid implemented by commit 1ce36bfe6424243082d3d7c2330e1a0a4ff72a43:
+        ('x86_64-cpu',           'tcg-cpuid',         False),
+        ('i386-cpu',             'tcg-cpuid',         False),
         ('x86_64-cpu',           'cpuid-0xb',                     False),
         ('i386-cpu',             'cpuid-0xb',                     False),
         ('x86_64-cpu',           'l3-cache',                      False),
