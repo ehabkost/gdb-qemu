@@ -445,7 +445,7 @@ def qobject_value(qobj):
         else:
             return bool(qbool_get_int(qobj.cast(QBool.pointer())))
     elif qtype == QTYPE_QDICT:
-        raise Exception("can't handle %s qobject type" % (qtype))
+        raise Exception("I don't know how to handle %s qobject type" % (qtype))
 
 def object_iter_props(obj):
     """Iterate over properties of a given Object*"""
