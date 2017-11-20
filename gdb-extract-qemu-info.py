@@ -241,7 +241,7 @@ def value_to_py(v, follow_pointer=False):
             return dict()
     elif code == gdb.TYPE_CODE_ENUM:
         return str(v)
-    elif code == gdb.TYPE_CODE_STRUCT:
+    elif code == gdb.TYPE_CODE_STRUCT or code == gdb.TYPE_CODE_UNION:
         return value_to_dict(v, follow_pointer if type(follow_pointer) == dict \
                                 else {})
     else:
