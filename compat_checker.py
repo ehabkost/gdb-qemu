@@ -550,22 +550,14 @@ def get_omitted_machine_field(m, field):
     """Returns what value should be present in a MachineClass struct field
     to emulate QEMU's behavior when the field didn't exist yet
     """
-    if field == 'minimum_page_bits':
-        return 0
-    elif field == 'numa_mem_align_shift':
-        return 23
-    elif field == 'default_ram_size':
-        return 128 * 1024*1024
-    elif field == 'auto_enable_numa_with_memhp':
-        return False
-    #elif field == 'query_hotpluggable_cpus':
-    #    return '<machine_query_hotpluggable_cpus>' \
-    #           if m.get('has_hotpluggable_cpus') \
-    #           else None
-    #elif field == 'has_hotpluggable_cpus':
-    #    return (m.get('has_hotpluggable_cpus') is not None)
+    OMITTED_MACHINE_FIELDS = {
+        'minimum_page_bits': 0,
+        'numa_mem_align_shift': 23,
+        'default_ram_size': 128 * 1024*1024,
+        'auto_enable_numa_with_memhp': False,
+    }
 
-    return UNKNOWN_VALUE
+    return OMITTED_MACHINE_FIELDS.get(field, UNKNOWN_VALUE)
 
 def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
 
