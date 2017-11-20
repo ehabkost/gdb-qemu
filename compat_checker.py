@@ -433,6 +433,15 @@ def build_omitted_prop_dict(binary):
         # commit f4924974c7c72560f68ab298ac25a525a28a2124:
         ('virtio-mouse-device',  'wheel-axis',                    False),
         ('virtio-tablet-device', 'wheel-axis',                    False),
+        # commit 75ebec11afe49539f71cc1c494e3010f91c86adb:
+        ('virtio-net-device',    'x-mtu-bypass-backend',          False),
+        # commit bc277a52fbea1532d1adf30ba0edf15ab3dcdead:
+        ('pcie-root-port',       'x-migrate-msix',                False),
+        # commit 2f295167e0c429cec233aef7dc8e9fd6f90376df:
+        ('mch',                  'extended-tseg-mbytes',              0),
+        # commit dbaabb25f441264d9029dc53e84a156269ecd275:
+        ('intel-iommu',          'pt',                            False),
+        ('amd-iommu',            'pt',                            False),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
