@@ -608,13 +608,13 @@ def fixup_machine_field(m, field, v):
     elif field == 'default_display' and v is None:
         # default_display= NULL and default_display="cirrus" are (supposed to be) equivalent
         return 'cirrus'
-    elif field == 'min_cpus':
+    elif field == 'min_cpus' and v == 0:
         # min_cpus == 0 is the same as min_cpus == 1
         return 1
-    elif field == 'max_cpus':
+    elif field == 'max_cpus' and v == 0:
         # max_cpus == 0 is the same as max_cpus == 1
         return 1
-    elif field == 'default_cpus':
+    elif field == 'default_cpus' and v == 0:
         # default_cpus == 0 is the same as default_cpus == 1
         return 1
     elif field == 'default_cpu_type' and re.match('pc-.*|rhel[67]\..*', mname):

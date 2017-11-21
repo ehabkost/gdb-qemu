@@ -271,6 +271,41 @@ EOF
 check_expected unknown_machine_field -q F1 F2
 
 
+# max_cpus simple and obvious mismatch:
+
+cat > F1 <<EOF
+[{"request":["machine", "M"],
+  "result":{"max_cpus":100}}]
+EOF
+cat > F2 <<EOF
+[{"request":["machine", "M"],
+  "result":{"max_cpus": 99}}]
+EOF
+cat > EXPECTED <<EOF
+ERROR: F1 vs F2: machine M: difference at machine.max_cpus (100 != 99)
+EOF
+
+check_expected max_cpus_mismatch -q F1 F2
+
+
+
+# max_cpus==0 is the same as max_cpus==1:
+
+cat > F1 <<EOF
+[{"request":["machine", "M"],
+  "result":{"max_cpus":0}}]
+EOF
+cat > F2 <<EOF
+[{"request":["machine", "M"],
+  "result":{"max_cpus": 1}}]
+EOF
+cat > EXPECTED <<EOF
+EOF
+
+check_expected max_cpus_zero_one -q F1 F2
+
+
+
 #PLANNED:
 # warning when a device type vanishes and is not supported anymore:
 #
