@@ -575,6 +575,7 @@ def get_machine(name):
     machines = object_class_get_list(c_string("machine"), 0)
     el = machines
     while tolong(el):
+        #TODO: return fields from machine-specific structs too (e.g. PCMachineClass)
         mc = unwrap_machine(el['data'].cast(MachineClass.pointer()))
         #dbg("looking at mc: %s", mc)
         if mc['name'].string() == name or \
