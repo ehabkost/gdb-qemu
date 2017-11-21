@@ -573,6 +573,13 @@ def get_omitted_machine_field(m, field):
         'has_dynamic_sysbus': 0,
         'default_display': None,
         'pci_allow_0_address': 0,
+
+        'min_cpus': 0,
+        'max_cpus': 0,
+        'default_cpus': 0,
+
+        'ignore_memory_transaction_failures': False,
+        'valid_cpu_types': None,
     }
 
     return OMITTED_MACHINE_FIELDS.get(field, UNKNOWN_VALUE)
@@ -580,17 +587,30 @@ def get_omitted_machine_field(m, field):
 def fixup_machine_field(m, field, v):
     """Fixup some machine fields when we know they won't match on some machine-types"""
 
-    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', m.get('name', '')) and v == 255:
+    mname = m.get('name', '')
+    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', mname) and v == 255:
         #rhel6.* machine-types had max_cpus=255 on qemu-kvm-1.5.3:
         #TODO: probably not a bug, but we need to confirm that:
         return 240
-    elif m.get('name', '') == 'none' and \
+    elif mname == 'none' and \
          re.match('(|default_)boot_order|default_ram_size|block_default_type|max_cpus', field):
         # boot order doesn't matter for -machine none
         return None
     elif field == 'default_display' and v is None:
         # default_display= NULL and default_display="cirrus" are (supposed to be) equivalent
         return 'cirrus'
+    elif field == 'min_cpus':
+        # min_cpus == 0 is the same as min_cpus == 1
+        return 1
+    elif field == 'max_cpus':
+        # max_cpus == 0 is the same as max_cpus == 1
+        return 1
+    elif field == 'default_cpus':
+        # default_cpus == 0 is the same as default_cpus == 1
+        return 1
+    elif field == 'default_cpu_type' and re.match('pc-.*|rhel[67]\..*', mname):
+        #FIXME: check if x86_64 or i386
+        return 'qemu64-x86_64-cpu'
     return v
 
 def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
@@ -632,6 +652,7 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         'cpu_index_to_instance_props': None,
         'numa_auto_assign_ram': None,
         'kvm_type': None,
+        'get_default_cpu_node_id': None,
 
         # alias/is_default won't affect the machine ABI:
         'alias': None, # ignore field
@@ -659,7 +680,7 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
             v2 = get_omitted_machine_field(m2, f)
 
         v1 = fixup_machine_field(m1, f, v1)
-        v2 = fixup_machine_field(m1, f, v2)
+        v2 = fixup_machine_field(m2, f, v2)
 
         if v1 is UNKNOWN_VALUE:
             yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b1, f, machinename)
