@@ -457,6 +457,7 @@ def build_omitted_prop_dict(binary):
         #     directly, anyway
         ('rtl8139',              '__redhat_send_rxokmul',         False),
         ('e1000e',               '__redhat_e1000e_7_3_intr_state', True),
+        ('ICH9-LPC',             '__com.redhat_force-rev1-fadt',   True),
     ]
 
     r = {}
