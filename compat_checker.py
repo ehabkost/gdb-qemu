@@ -167,6 +167,24 @@ def parse_property_value(prop, value):
     else:
         raise Exception("Unsupported property type %s" % (t))
 
+def try_bool(v):
+    """Try to convert a value to a boolean, keep it untouched otherwise"""
+    if v in [0, False, '0', 'off']:
+        return False
+    elif v in [1, True, '1', 'on']:
+        return True
+    else:
+        return v
+
+def bool_to_str(v):
+    """Convert boolean values to str, keep anything else untouched"""
+    if v == False:
+        return 'off'
+    elif v == True:
+        return 'on'
+    else:
+        return v
+
 def compare_properties(p1, v1, p2, v2):
     """Compare two property values, with some hacks to handle type mismatches"""
 
@@ -175,27 +193,30 @@ def compare_properties(p1, v1, p2, v2):
     # 2) virtio-pci.disable-legacy also changed from bool to OnOffAuto
     if p1 is not None \
        and p1.get('type') == 'OnOffAuto':
-        if v2 in [0, False, '0']:
-            v2 = "off"
-        elif v2 in [1, True, '1']:
-            v2 = "on"
+       v2 = bool_to_str(try_bool(v2))
     if p2 is not None \
        and p2.get('type') == 'OnOffAuto':
-        if v1 in [0, False, '0']:
-            v1 = "off"
-        elif v1 in [1, True, '1']:
-            v1 = "on"
+       v1 = bool_to_str(try_bool(v1))
 
-    # try string comparison if we really don't know anything about
-    # the property:
+
+    dbg("comparing %r:%r and %r:%r", v1, p1, v2, p2)
+
+    # try some tricks if there's absolutely no type information:
     if p1 is None and p2 is None:
-        v1 = str(v1)
-        v2 = str(v2)
-    elif p1 is not None and p2 is None:
-        # if property type is unknown on one QEMU binary, try using the
-        # type information from the other binary:
+        if (type(v1) is bool or type(v2) is bool):
+            v1 = try_bool(v1)
+            v2 = try_bool(v2)
+        else:
+            # try string comparison if we really don't know anything about
+            # the property:
+            v1 = str(v1)
+            v2 = str(v2)
+
+    # if property type is unknown on one QEMU binary, try using the
+    # type information from the other binary:
+    if p1 is not None and p2 is None:
         v2 = parse_property_value(p1, v2)
-    elif p2 is not None and p1 is None:
+    if p2 is not None and p1 is None:
         v1 = parse_property_value(p2, v1)
 
     return v2 == v1
