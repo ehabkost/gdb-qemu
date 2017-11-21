@@ -260,7 +260,7 @@ class QEMUBinaryInfo:
             cmd.extend(['-D', d])
             if d in UNSAFE_DEVICES:
                 cmd.extend(['--unsafe-device', d])
-        if args.debug:
+        if args.loglevel <= DEBUG:
             cmd.append('-d')
         cmd.append(self.path)
         subprocess.call(cmd)
