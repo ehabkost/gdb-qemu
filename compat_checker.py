@@ -711,8 +711,13 @@ def main():
                         help="Check properties for all device types")
     #parser.add_argument('--all-machines', action='store_true',
     #                    help="Verify all machine-types")
-    parser.add_argument('-d', '--debug', dest='debug', action='store_true',
+    parser.add_argument('-d', '--debug',
+                        dest='loglevel', action='store_const', const=DEBUG,
+                        default=INFO,
                         help="Enable debugging messages")
+    parser.add_argument('-q', '--quiet',
+                        dest='loglevel', action='store_const', const=WARN,
+                        help="Disable INFO messages")
     parser.add_argument('-O', metavar='FILE', dest='dump_file',
                         help="Dump raw JSON data to FILE")
 
@@ -729,10 +734,7 @@ def main():
 
     args = parser.parse_args()
 
-    lvl = INFO
-    if args.debug:
-        lvl = DEBUG
-    logging.basicConfig(stream=sys.stdout, level=lvl,
+    logging.basicConfig(stream=sys.stdout, level=args.loglevel,
                         format='%(levelname)s: %(message)s')
     binaries = []
     if args.files:
