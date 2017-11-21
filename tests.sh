@@ -118,7 +118,7 @@ cat > F2 <<EOF
                              "value":"X"}]}}]
 EOF
 cat > EXPECTED <<EOF
-WARNING: F1 vs F2: M: I don't know the default value of mydev.myprop in F1
+WARNING: F1: M: I don't know the default value of mydev.myprop
 EOF
 
 check_expected unknown_defvalue -q F1 F2
@@ -148,7 +148,7 @@ cat > F2 <<EOF
                                 "type":"bool"}]}}]
 EOF
 cat > EXPECTED <<EOF
-ERROR: F1 vs F2: M: Invalid property: mydev.myprop at F2
+ERROR: F2: M: Invalid property: mydev.myprop
 EOF
 
 check_expected invalid_prop -q F1 F2
@@ -177,7 +177,7 @@ cat > F2 <<EOF
   "result":{"props":[], "instance_props":[]}}]
 EOF
 cat > EXPECTED <<EOF
-WARNING: F1 vs F2: M: Not enough info to validate property: mydev.myprop at F2
+WARNING: F2: M: Not enough info to validate property: mydev.myprop
 EOF
 
 check_expected no_prop_info -q F1 F2

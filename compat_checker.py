@@ -59,9 +59,30 @@ class ValidationContext:
             r += ': %s' % (self.machinename)
         return r
 
-    def report_result(self, loglevel, msg, *args):
+    def log(self, loglevel, msg, *args):
+        """Log a simple human-readable message (useful for debugging)"""
         msg = msg % args
         logger.log(loglevel, '%s: %s', self, msg)
+
+    def single_binary_ctx(self, b):
+        """Return context for validations involving only a single binary"""
+        r = copy.copy(self)
+        r.binary1 = b
+        r.binary2 = None
+        return r
+
+    def b1_ctx(self):
+        return self.single_binary_ctx(self.binary1)
+
+    def b2_ctx(self):
+        return self.single_binary_ctx(self.binary2)
+
+    def report_result(self, loglevel, msg, *args):
+        """Report result of a specific validation
+
+        TODO: replace msg+args with a dictionary containing result information.
+        """
+        self.log(loglevel, msg, *args)
 
 def apply_compat_props(binary, machinename, d, compat_props):
     values = {}
@@ -507,6 +528,58 @@ def build_omitted_prop_dict(binary):
 
     return r
 
+def calculate_prop_value(ctx, compat, devtype, propname):
+    """Try to find out what's going to be the default value for a property"""
+    d = devtype
+    p = propname
+
+    omitted1 = build_omitted_prop_dict(ctx.binary)
+
+    ctx.log(DEBUG, "calculating default value for %s.%s", d, p)
+    dt1 = ctx.binary1.get_devtype(d)
+    dbg("dt: %s", dt1 and dt1.get('type'))
+    pi1 = get_devtype_property_info(dt1, p)
+    dbg("pi1: %s", pi1)
+    v1 = compat.get(d, {}).get(p)
+    dbg("v1: %r", v1)
+
+    # we have a problem if:
+    # 1) the property is set; 2) the devtype is really supported by the binary;
+    # and 3) the propert is not present.
+    # This means setting compat_props will fail if the device is present
+    # on a VM.
+    if pi1 is not None: # found property info
+        v1 = parse_property_value(pi1, v1)
+    elif v1 is not None and dt1 is not None:
+        if devtype_has_full_prop_info(dt1):
+            ctx.report_result(ERROR, "Invalid property: %s.%s" % (d, p))
+        else:
+            ctx.report_result(WARN, "Not enough info to validate property: %s.%s" % (d, p))
+
+    dbg("parsed v1: %r", v1)
+
+    # if property was not on compat_props, try to get the default value from
+    # device property info
+    if v1 is None and pi1 is not None:
+        v1 = pi1.get('defval')
+
+    dbg("defval v1: %r", v1)
+
+    # if we still don't know what was the default value because the property
+    # is not known, lookup the omitted-properties dictionary
+    if v1 is None and pi1 is None:
+        v1 = omitted1.get(d, {}).get(p)
+
+    dbg("omitted v1: %r", v1)
+
+    if v1 is None and dt1 is not None:
+        # warn about not knowing the actual default value only if the device type is
+        # really supported by the machine-type
+        ctx.report_result(WARN, "I don't know the default value of %s.%s" % (d, p))
+
+    return pi1, v1
+
+
 def compare_machine_compat_props(args, ctx, m1, m2):
     b1 = ctx.binary1
     b2 = ctx.binary2
@@ -515,9 +588,6 @@ def compare_machine_compat_props(args, ctx, m1, m2):
     compat2 = {}
     apply_compat_props(b1, machinename, compat1, m1.get('compat_props', []))
     apply_compat_props(b2, machinename, compat2, m2.get('compat_props', []))
-
-    omitted1 = build_omitted_prop_dict(b1)
-    omitted2 = build_omitted_prop_dict(b2)
 
     if args.devices:
         devices_to_check = set(args.devices)
@@ -532,65 +602,12 @@ def compare_machine_compat_props(args, ctx, m1, m2):
         cp2 = compat2.get(d, {})
         #TODO: add option to compare all properties, not just the ones on compat_checker
         for p in set(cp1.keys() + cp2.keys()):
-            dbg("will compare %s.%s", d, p)
-            dt1 = b1.get_devtype(d)
-            dt2 = b2.get_devtype(d)
-            dbg("dt1: %s, dt2: %s", dt1 and dt1.get('type'), dt2 and dt2.get('type'))
-            pi1 = get_devtype_property_info(dt1, p)
-            pi2 = get_devtype_property_info(dt2, p)
-            dbg("pi1: %r, pi2: %r", pi1, pi2)
-            v1 = cp1.get(p)
-            v2 = cp2.get(p)
-            dbg("v1: %r, v2: %r", v1, v2)
+            pi1, v1 = calculate_prop_value(ctx.b1_ctx(), compat1, d, p)
+            pi2, v2 = calculate_prop_value(ctx.b2_ctx(), compat2, d, p)
 
-            # we have a problem if:
-            # 1) the property is set; 2) the devtype is really supported by the binary;
-            # and 3) the propert is not present.
-            # This means setting compat_props will fail if the device is present
-            # on a VM.
-            if pi1 is not None: # found property info
-                v1 = parse_property_value(pi1, v1)
-            elif v1 is not None and dt1 is not None:
-                if devtype_has_full_prop_info(dt1):
-                    ctx.report_result(ERROR, "Invalid property: %s.%s at %s" % (d, p, b1))
-                else:
-                    ctx.report_result(WARN, "Not enough info to validate property: %s.%s at %s" % (d, p, b1))
-            if pi2 is not None: # found property info
-                v2 = parse_property_value(pi2, v2)
-            elif v2 is not None and dt2 is not None:
-                if devtype_has_full_prop_info(dt2):
-                    ctx.report_result(ERROR, "Invalid property: %s.%s at %s" % (d, p, b2))
-                else:
-                    ctx.report_result(WARN, "Not enough info to validate property: %s.%s at %s" % (d, p, b2))
-
-            dbg("parsed v1: %r, v2: %r", v1, v2)
-
-            # if property was not on compat_props, try to get the default value from
-            # device property info
-            if v1 is None and pi1 is not None:
-                v1 = pi1.get('defval')
-            if v2 is None and pi2 is not None:
-                v2 = pi2.get('defval')
-
-            dbg("defval v1: %r, v2: %r", v1, v2)
-
-            # if we still don't know what was the default value because the property
-            # is not known, lookup the omitted-properties dictionary
-            if v1 is None and pi1 is None:
-                v1 = omitted1.get(d, {}).get(p)
-            if v2 is None and pi2 is None:
-                v2 = omitted2.get(d, {}).get(p)
-
-            dbg("omitted v1: %r, v2: %r", v1, v2)
-
-            # warn about not knowing the actual default value only if the device type is
-            # really supported by the machine-type
-            if v1 is None:
-                if dt1 is not None:
-                    ctx.report_result(WARN, "I don't know the default value of %s.%s in %s" % (d, p, b1))
-            elif v2 is None:
-                if dt2 is not None:
-                    ctx.report_result(WARN, "I don't know the default value of %s.%s in %s" % (d, p, b2))
+            if v1 is None or v2 is None:
+                # we can't compare something we don't know about
+                pass
             elif not compare_properties(pi1, v1, pi2, v2):
                 ctx.report_result(ERROR, "difference at %s.%s (%r != %r)" % (d, p, v1, v2))
             else:
