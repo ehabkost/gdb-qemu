@@ -377,6 +377,9 @@ def build_omitted_prop_dict(binary):
         # commit 6c69dfb67e84747cf071958594d939e845dfcc0c:
         ('x86_64-cpu',           'x-hv-max-vps', 0x40),
         ('i386-cpu',             'x-hv-max-vps', 0x40),
+        # commit 9954a1582e18b03ddb66f6c892dccf2c3508f4b2:
+        ('x86_64-cpu',           'vmware-cpuid-freq',             False),
+        ('i386-cpu',             'vmware-cpuid-freq',             False),
 
         ('virtio-pci',           'x-pcie-pm-init',                False),
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),
