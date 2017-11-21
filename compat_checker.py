@@ -40,12 +40,10 @@ class ValidationContext:
 
     Attributes:
     * binary1: First binary/dump being verified.
-    * binary: Same as binary1
     * binary2: Second binary/dump being verified.
     * machinename: Machine type name.
     """
     def __init__(self, binary1=None, binary2=None, machinename=None):
-        self.binary = binary1
         self.binary1 = binary1
         self.binary2 = binary2
         self.machinename = machinename
@@ -575,7 +573,7 @@ def calculate_prop_value(ctx, compat, devtype, propname):
     d = devtype
     p = propname
 
-    omitted1 = build_omitted_prop_dict(ctx.binary)
+    omitted1 = build_omitted_prop_dict(ctx.binary1)
 
     ctx.log(DEBUG, "calculating default value for %s.%s", d, p)
     dt1 = ctx.binary1.get_devtype(d)
