@@ -124,6 +124,60 @@ EOF
 check_expected unknown_defvalue -q F1 F2
 
 
+# error when we do have the property list but the property doesn't exist:
+
+cat > F1 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "mydev"],
+  "result":{"props":[{"name":"myprop", "defval":true,
+                      "info":{"name":"bool"}}]}}]
+EOF
+cat > F2 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "mydev"],
+  "result":{"props":[{"name":"anotherprop", "defval":true,
+                      "info":{"name":"bool"}}]}}]
+EOF
+cat > EXPECTED <<EOF
+ERROR: Invalid property: mydev.myprop at F2:M
+EOF
+
+check_expected invalid_prop -q F1 F2
+
+
+
+# no warning when the device type is not compiled in:
+
+cat > F1 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "mydev"],
+  "result":{"props":[{"name":"myprop", "defval":true,
+                      "info":{"name":"bool"}}]}}]
+EOF
+cat > F2 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "mydev"],
+  "result":{}}]
+EOF
+cat > EXPECTED <<EOF
+WARNING: Not enough info to validate property: mydev.myprop at F2:M
+EOF
+
+check_expected no_prop_info -q F1 F2
+
+
 
 # no conflict when we know the default value for the property:
 

@@ -52,6 +52,9 @@ def apply_compat_props(binary, machinename, d, compat_props):
         for subtype in  subtypes:
             d.setdefault(subtype['name'], {})[cp['property']] = cp['value']
 
+def devtype_has_prop_info(devtype):
+    return 'props' in devtype or 'instance_props' in devtype
+
 def get_devtype_property_info(devtype, propname):
     if devtype is None:
         return None
@@ -511,11 +514,17 @@ def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
             if pi1 is not None: # found property info
                 v1 = parse_property_value(pi1, v1)
             elif v1 is not None and dt1 is not None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v1, b1, machinename)
+                if devtype_has_prop_info(dt1):
+                    yield ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b1, machinename)
+                else:
+                    yield WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b1, machinename)
             if pi2 is not None: # found property info
                 v2 = parse_property_value(pi2, v2)
             elif v2 is not None and dt2 is not None:
-                yield ERROR, "Can't parse %s.%s=%s at %s:%s" % (d, p, v2, b2, machinename)
+                if devtype_has_prop_info(dt2):
+                    yield ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b2, machinename)
+                else:
+                    yield WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b2, machinename)
 
             dbg("parsed v1: %r, v2: %r", v1, v2)
 
