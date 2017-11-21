@@ -593,6 +593,11 @@ def get_omitted_machine_field(m, field):
 
     return OMITTED_MACHINE_FIELDS.get(field, UNKNOWN_VALUE)
 
+def parse_opts(s):
+    if ',,' in s:
+        raise Exception("I don't know how to parse escaped commas on QemuOpts")
+    return dict(v.split('=', 1) for v in s.split(','))
+
 def fixup_machine_field(m, field, v):
     """Fixup some machine fields when we know they won't match on some machine-types"""
 
@@ -620,6 +625,12 @@ def fixup_machine_field(m, field, v):
     elif field == 'default_cpu_type' and re.match('pc-.*|rhel[67]\..*', mname):
         #FIXME: check if x86_64 or i386
         return 'qemu64-x86_64-cpu'
+    elif field == 'default_machine_opts':
+        # assume firmware=bios.bin to be present if omitted:
+        r = {'firmware':'bios.bin'}
+        if v is not None:
+            r.update(parse_opts(v))
+        return r
     return v
 
 def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
