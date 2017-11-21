@@ -559,6 +559,15 @@ def build_omitted_prop_dict(binary):
         migrate = (dt['vmsd'] is not None)
         apply_compat_props(binary, '<omitted-props>', r, [dict(driver='isa-pcspk', property='migrate', value=migrate)])
 
+    # host-phys-bits is also tricky and depends on the binary version:
+    # * Upstream, we never used the host address bits
+    # * On RHEL >= 7.0, we always used the hsot address bits
+    if binary.get_machine('pc-i440fx-rhel7.0.0'):
+        host_phys_bits = True
+    else:
+        host_phys_bits = False
+    apply_compat_props(binary, '<omitted-props>', r, [dict(driver='x86_64-cpu', property='host-phys-bits', value=host_phys_bits)])
+
     return r
 
 def calculate_prop_value(ctx, compat, devtype, propname):
