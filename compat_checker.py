@@ -605,10 +605,8 @@ def compare_machine_compat_props(args, ctx, m1, m2):
         devices_to_check.update(b2.all_devtypes())
 
     for d in devices_to_check:
-        cp1 = compat1.get(d, {})
-        cp2 = compat2.get(d, {})
         #TODO: add option to compare all properties, not just the ones on compat_checker
-        for p in set(cp1.keys() + cp2.keys()):
+        for p in set(compat1.get(d, {}).keys() + compat2.get(d, {}).keys()):
             pi1, v1 = calculate_prop_value(ctx.b1_ctx(), compat1, d, p)
             pi2, v2 = calculate_prop_value(ctx.b2_ctx(), compat2, d, p)
 
