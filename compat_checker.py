@@ -53,7 +53,7 @@ def apply_compat_props(binary, machinename, d, compat_props):
             d.setdefault(subtype['name'], {})[cp['property']] = cp['value']
 
 def devtype_has_full_prop_info(devtype):
-    return ('props' in devtype) and ('instance_props' in devtype)
+    return ('props' in devtype) and ('instance_props' in devtype) and len(devtype['instance_props']) > 0
 
 def get_devtype_property_info(devtype, propname):
     if devtype is None:

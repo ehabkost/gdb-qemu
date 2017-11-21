@@ -144,7 +144,8 @@ cat > F2 <<EOF
  {"request":["device-type", "mydev"],
   "result":{"props":[{"name":"anotherprop", "defval":true,
                       "info":{"name":"bool"}}],
-            "instance_props":[]}}]
+            "instance_props":[{"name":"anotherprop", "defval":true,
+                                "type":"bool"}]}}]
 EOF
 cat > EXPECTED <<EOF
 ERROR: Invalid property: mydev.myprop at F2:M
@@ -154,7 +155,9 @@ check_expected invalid_prop -q F1 F2
 
 
 
-# no warning when the device type is not compiled in:
+# only warning when property info for the type isn't complete:
+# if instance_props is present but empty, it's a sign we probably
+# couldn't collect all properties for the device
 
 cat > F1 <<EOF
 [{"request":["machine", "M"],
@@ -171,7 +174,7 @@ cat > F2 <<EOF
                              "property":"myprop",
                              "value":"off"}]}},
  {"request":["device-type", "mydev"],
-  "result":{}}]
+  "result":{"props":[], "instance_props":[]}}]
 EOF
 cat > EXPECTED <<EOF
 WARNING: Not enough info to validate property: mydev.myprop at F2:M
