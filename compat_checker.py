@@ -429,6 +429,13 @@ def build_omitted_prop_dict(binary):
         # commit 9954a1582e18b03ddb66f6c892dccf2c3508f4b2:
         ('x86_64-cpu',           'vmware-cpuid-freq',             False),
         ('i386-cpu',             'vmware-cpuid-freq',             False),
+        # CPU feature flags are always off if they are not present:
+        ('x86_64-cpu',           'arat',                          False),
+        ('i386-cpu',             'arat',                          False),
+        ('x86_64-cpu',           'abm',                           False),
+        ('i386-cpu',             'abm',                           False),
+        ('x86_64-cpu',           'sse4a',                         False),
+        ('i386-cpu',             'sse4a',                         False),
 
         ('virtio-pci',           'x-pcie-pm-init',                False),
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),
