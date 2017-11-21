@@ -22,7 +22,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ##############################################################################
 import sys, argparse, logging, subprocess, json, os, platform, socket
-import difflib, pprint, tempfile, shutil, re
+import difflib, pprint, tempfile, shutil, re, copy
 import qmp
 from logging import DEBUG, INFO, WARN, ERROR, CRITICAL
 
@@ -34,6 +34,33 @@ dbg = logger.debug
 
 # devices that can make gdb crash if querying instance properties:
 UNSAFE_DEVICES = set(['i440FX-pcihost', 'pc-dimm', 'q35-pcihost'])
+
+class ValidationContext:
+    """Object carrying information about the context where we're validating information
+
+    Attributes:
+    * binary1: First binary/dump being verified.
+    * binary: Same as binary1
+    * binary2: Second binary/dump being verified.
+    * machinename: Machine type name.
+    """
+    def __init__(self, binary1=None, binary2=None, machinename=None):
+        self.binary = binary1
+        self.binary1 = binary1
+        self.binary2 = binary2
+        self.machinename = machinename
+
+    def __str__(self):
+        if self.binary1 and self.binary2:
+            r = '%s vs %s' % (self.binary1, self.binary2)
+        elif self.binary1:
+            r = '%s' % (self.binary1)
+        if self.machinename:
+            r += ':%s' % (self.machinename)
+        return r
+
+    def report_result(self, loglevel, msg, *args):
+        logger.log(loglevel, msg)
 
 def apply_compat_props(binary, machinename, d, compat_props):
     values = {}
@@ -479,7 +506,10 @@ def build_omitted_prop_dict(binary):
 
     return r
 
-def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
+def compare_machine_compat_props(args, ctx, m1, m2):
+    b1 = ctx.binary1
+    b2 = ctx.binary2
+    machinename = ctx.machinename
     compat1 = {}
     compat2 = {}
     apply_compat_props(b1, machinename, compat1, m1.get('compat_props', []))
@@ -521,16 +551,16 @@ def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
                 v1 = parse_property_value(pi1, v1)
             elif v1 is not None and dt1 is not None:
                 if devtype_has_full_prop_info(dt1):
-                    yield ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b1, machinename)
+                    ctx.report_result(ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b1, machinename))
                 else:
-                    yield WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b1, machinename)
+                    ctx.report_result(WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b1, machinename))
             if pi2 is not None: # found property info
                 v2 = parse_property_value(pi2, v2)
             elif v2 is not None and dt2 is not None:
                 if devtype_has_full_prop_info(dt2):
-                    yield ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b2, machinename)
+                    ctx.report_result(ERROR, "Invalid property: %s.%s at %s:%s" % (d, p, b2, machinename))
                 else:
-                    yield WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b2, machinename)
+                    ctx.report_result(WARN, "Not enough info to validate property: %s.%s at %s:%s" % (d, p, b2, machinename))
 
             dbg("parsed v1: %r, v2: %r", v1, v2)
 
@@ -556,14 +586,14 @@ def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
             # really supported by the machine-type
             if v1 is None:
                 if dt1 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machinename)
+                    ctx.report_result(WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b1, machinename))
             elif v2 is None:
                 if dt2 is not None:
-                    yield WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b2, machinename)
+                    ctx.report_result(WARN, "I don't know the default value of %s.%s in %s (machine %s)" % (d, p, b2, machinename))
             elif not compare_properties(pi1, v1, pi2, v2):
-                yield ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machinename, d, p, v1, v2)
+                ctx.report_result(ERROR, "%s vs %s: machine %s: difference at %s.%s (%r != %r)" % (b1, b2, machinename, d, p, v1, v2))
             else:
-                yield DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machinename, d, p, v1, v2)
+                ctx.report_result(DEBUG, "machine %s: %s.%s is OK: %r == %r" % (machinename, d, p, v1, v2))
 
 
 # we can't use None to indicate unknown value, because we can
@@ -639,7 +669,10 @@ def fixup_machine_field(m, field, v):
         return r
     return v
 
-def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
+def compare_machine_simple_fields(args, ctx, m1, m2):
+    b1 = ctx.binary1
+    b2 = ctx.binary2
+    machinename = ctx.machinename
 
     # our comparison functions:
     def simple_compare(v1, v2):
@@ -709,41 +742,40 @@ def compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
         v2 = fixup_machine_field(m2, f, v2)
 
         if v1 is UNKNOWN_VALUE:
-            yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b1, f, machinename)
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b1, f, machinename))
         if v2 is UNKNOWN_VALUE:
-            yield WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b2, f, machinename)
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field in machine %s" % (b2, f, machinename))
 
         if v1 is not UNKNOWN_VALUE and v2 is not UNKNOWN_VALUE:
             dbg("will compare machine.%s: %r vs %r", f, v1, v2)
             if compare_func(v1, v2):
-                yield DEBUG, 'machine.%s is OK' % (f)
+                ctx.report_result(DEBUG, 'machine.%s is OK' % (f))
             else:
-                yield ERROR, "%s vs %s: machine %s: difference at machine.%s (%r != %r)" % (b1, b2, machinename, f, v1, v2)
+                ctx.report_result(ERROR, "%s vs %s: machine %s: difference at machine.%s (%r != %r)" % (b1, b2, machinename, f, v1, v2))
 
-def compare_machine(args, b1, b2, machinename):
-    m1 = b1.get_machine(machinename)
-    m2 = b2.get_machine(machinename)
+def compare_machine(args, ctx):
+    m1 = ctx.binary1.get_machine(ctx.machinename)
+    m2 = ctx.binary2.get_machine(ctx.machinename)
     if m1 is None:
-        logger.warn("%s doesn't have info about machine %s" % (b1, machinename))
+        logger.warn("%s doesn't have info about machine %s" % (ctx.binary1, ctx.machinename))
         return
     if m2 is None:
-        logger.warn("%s doesn't have info about machine %s" % (b2, machinename))
+        logger.warn("%s doesn't have info about machine %s" % (ctx.binary2, ctx.machinename))
         return
 
-    for e in compare_machine_simple_fields(args, b1, b2, machinename, m1, m2):
-        yield e
-    for e in compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
-        yield e
+    compare_machine_simple_fields(args, ctx, m1, m2)
+    compare_machine_compat_props(args, ctx, m1, m2)
 
-def compare_binaries(args, b1, b2):
+def compare_binaries(args, ctx):
     machines = args.machines
     if not machines:
-        machines = set(b1.available_machines())
-        machines.intersection_update(b2.available_machines())
+        machines = set(ctx.binary1.available_machines())
+        machines.intersection_update(ctx.binary2.available_machines())
     for m in machines:
-        dbg("will compare machine %s in binaries: %s and %s", m, b1, b2)
-        for error in compare_machine(args, b1, b2, m):
-            yield error
+        mctx = copy.copy(ctx)
+        mctx.machinename = m
+        dbg("will compare machine: %s", mctx)
+        compare_machine(args, mctx)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -809,8 +841,8 @@ def main():
     for i,b1 in enumerate(binaries):
         for b2 in binaries[i+1:]:
             logger.info("Comparing %s and %s", b1, b2)
-            for lvl,msg in compare_binaries(args, b1, b2):
-                logger.log(lvl, msg)
+            ctx = ValidationContext(binary1=b1, binary2=b2)
+            compare_binaries(args, ctx)
 
 if __name__ == '__main__':
     sys.exit(main())
