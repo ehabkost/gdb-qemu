@@ -667,6 +667,7 @@ def get_omitted_machine_field(m, field):
         'has_dynamic_sysbus': 0,
         'default_display': None,
         'pci_allow_0_address': 0,
+        'legacy_fw_cfg_order': 1,
 
         'min_cpus': 0,
         'max_cpus': 0,
@@ -725,7 +726,17 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
 
     # our comparison functions:
     def simple_compare(v1, v2):
+        if v1 is UNKNOWN_VALUE:
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b1, f))
+            return
+        if v2 is UNKNOWN_VALUE:
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b2, f))
+            return
         return v1 == v2
+
+    def ignore_unknown_value(v1, v2):
+        """Compare values, but don't print a warning if we don't know one of them"""
+        return (v1 is UNKNOWN_VALUE) or (v2 is UNKNOWN_VALUE) or (v1 == v2)
 
     def compare_func_name(v1, v2):
         func_re = re.compile('<([^>]*)>')
@@ -742,6 +753,13 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
     KNOWN_FIELDS = {
         # compat_props is checked separately by compare_machine_compat_props()
         'compat_props': None,
+
+        # there's no easy way to support these fields on get_omitted_machine_field()
+        # because when the MachineClass fields were introduced
+        # (commit 71ae9e94d99240cd02926ad76fadb4963a873b09), some machine-types
+        # set them to true and others set them to false
+        'option_rom_has_mr': ignore_unknown_value,
+        'rom_file_has_mr': ignore_unknown_value,
 
         # things we skip and won't try to validate:
 
@@ -790,17 +808,14 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
         v1 = fixup_machine_field(m1, f, v1)
         v2 = fixup_machine_field(m2, f, v2)
 
-        if v1 is UNKNOWN_VALUE:
-            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b1, f))
-        if v2 is UNKNOWN_VALUE:
-            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b2, f))
-
-        if v1 is not UNKNOWN_VALUE and v2 is not UNKNOWN_VALUE:
-            dbg("will compare machine.%s: %r vs %r", f, v1, v2)
-            if compare_func(v1, v2):
-                ctx.report_result(DEBUG, 'machine.%s is OK' % (f))
-            else:
-                ctx.report_result(ERROR, "difference at machine.%s (%r != %r)" % (f, v1, v2))
+        dbg("will compare machine.%s: %r vs %r", f, v1, v2)
+        r = compare_func(v1, v2)
+        if r is None:
+            continue
+        elif r:
+            ctx.report_result(DEBUG, 'machine.%s is OK' % (f))
+        else:
+            ctx.report_result(ERROR, "difference at machine.%s (%r != %r)" % (f, v1, v2))
 
 def compare_machine(args, ctx):
     m1 = ctx.binary1.get_machine(ctx.machinename)
