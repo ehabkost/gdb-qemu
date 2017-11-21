@@ -448,6 +448,8 @@ def build_omitted_prop_dict(binary):
         # commit dbaabb25f441264d9029dc53e84a156269ecd275:
         ('intel-iommu',          'pt',                            False),
         ('amd-iommu',            'pt',                            False),
+        # commit b8bab8eb6934cbf6577a18a9c5657d7707379ac0:
+        ('ICH9-LPC',             'x-smi-broadcast',               False),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
