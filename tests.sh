@@ -133,7 +133,8 @@ cat > F1 <<EOF
                              "value":"off"}]}},
  {"request":["device-type", "mydev"],
   "result":{"props":[{"name":"myprop", "defval":true,
-                      "info":{"name":"bool"}}]}}]
+                      "info":{"name":"bool"}}],
+            "instance_props":[]}}]
 EOF
 cat > F2 <<EOF
 [{"request":["machine", "M"],
@@ -142,7 +143,8 @@ cat > F2 <<EOF
                              "value":"off"}]}},
  {"request":["device-type", "mydev"],
   "result":{"props":[{"name":"anotherprop", "defval":true,
-                      "info":{"name":"bool"}}]}}]
+                      "info":{"name":"bool"}}],
+            "instance_props":[]}}]
 EOF
 cat > EXPECTED <<EOF
 ERROR: Invalid property: mydev.myprop at F2:M
