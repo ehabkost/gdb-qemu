@@ -60,7 +60,7 @@ def get_devtype_property_info(devtype, propname):
     for prop in devtype.get('props', []):
         if prop['name'] == propname and 'defval' in prop:
             r = dict(name=prop['name'],
-                     type=prop['info']['name'],
+                     type=prop.get('info', {}).get('name'),
                      defval=prop['defval'])
             break
 
@@ -100,7 +100,7 @@ def parse_property_value(prop, value):
         return None
 
     t = prop['type']
-    if re.match('u?int(|8|16|32|64)', t):
+    if t is not None and re.match('u?int(|8|16|32|64)', t):
         if type(value) == int:
             return value
         return int(value, base=0)
@@ -473,8 +473,8 @@ def build_omitted_prop_dict(binary):
 def compare_machine_compat_props(args, b1, b2, machinename, m1, m2):
     compat1 = {}
     compat2 = {}
-    apply_compat_props(b1, machinename, compat1, m1['compat_props'])
-    apply_compat_props(b2, machinename, compat2, m2['compat_props'])
+    apply_compat_props(b1, machinename, compat1, m1.get('compat_props', []))
+    apply_compat_props(b2, machinename, compat2, m2.get('compat_props', []))
 
     omitted1 = build_omitted_prop_dict(b1)
     omitted2 = build_omitted_prop_dict(b2)
@@ -580,11 +580,11 @@ def get_omitted_machine_field(m, field):
 def fixup_machine_field(m, field, v):
     """Fixup some machine fields when we know they won't match on some machine-types"""
 
-    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', m['name']) and v == 255:
+    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', m.get('name', '')) and v == 255:
         #rhel6.* machine-types had max_cpus=255 on qemu-kvm-1.5.3:
         #TODO: probably not a bug, but we need to confirm that:
         return 240
-    elif m['name'] == 'none' and \
+    elif m.get('name', '') == 'none' and \
          re.match('(|default_)boot_order|default_ram_size|block_default_type|max_cpus', field):
         # boot order doesn't matter for -machine none
         return None
