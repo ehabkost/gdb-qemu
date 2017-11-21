@@ -239,3 +239,26 @@ EOF
 
 check_expected unknown_machine_field -q F1 F2
 
+
+#PLANNED:
+# warning when a device type vanishes and is not supported anymore:
+#
+# cat > F1 <<EOF
+# [{"request":["machine", "M"],
+#   "result":{},
+#  {"request":["device-type", "mydev"],
+#   "result":{"props":[{"name":"myprop", "defval":true,
+#                       "info":{"name":"bool"}}]}}]
+# EOF
+# cat > F2 <<EOF
+# [{"request":["machine", "M"],
+#   "result":{},
+#  {"request":["device-type", "anotherdev"],
+#   "result":{"props":[{"name":"anotherprop", "defval":true,
+#                       "info":{"name":"bool"}}]}}]
+# EOF
+# cat > EXPECTED <<EOF
+# WARN: device type mydev is not available anymore
+# EOF
+#
+# check_expected device_type_removed -q F1 F2
