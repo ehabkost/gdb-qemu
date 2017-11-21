@@ -89,11 +89,15 @@ AUTO_GLOBALS = [
   'qint_get_int',
   'qstring_get_str',
   'QTYPE_NONE',
+  'QTYPE_QNUM',
   'QTYPE_QBOOL',
   'QTYPE_QDICT',
   'QTYPE_QFLOAT',
   'QTYPE_QINT',
   'QTYPE_QSTRING',
+  'QNUM_I64',
+  'QNUM_U64',
+  'QNUM_DOUBLE',
 
   (E, 'devstr', '"device"'),
 
@@ -114,6 +118,7 @@ AUTO_GLOBALS = [
   (T, 'QBool'),
   (T, 'QFloat'),
   (T, 'QInt'),
+  (T, 'QNum'),
   (T, 'QString'),
   (T, 'QEnumLookup'),
 ]
@@ -430,6 +435,17 @@ def dev_class_props(dc):
         for p in dev_class_props(parent_dc):
             yield p
 
+def qnum_value(qn):
+    kind = qn['kind']
+    if kind == QNUM_I64:
+        return int(qn['u']['i64'])
+    if kind == QNUM_U64:
+        return int(qn['u']['u64'])
+    if kind == QNUM_DOUBLE:
+        return int(qn['u']['dbl'])
+    else:
+        raise Exception("Unexpected qnum kind: %d", kind)
+
 def qobject_value(qobj):
     """Convert QObject value to a Python value"""
     #dbg("qobj: %r", value_to_dict(qobj))
@@ -441,8 +457,10 @@ def qobject_value(qobj):
         qtype = qtype['code']
     if qtype == QTYPE_NONE:
         return None
-    elif qtype == QTYPE_QINT:
+    elif QTYPE_QINT is not None and qtype == QTYPE_QINT:
         return tolong(qint_get_int(qobj.cast(QInt.pointer())))
+    elif QTYPE_QNUM is not None and qtype == QTYPE_QNUM:
+        return qnum_value(qobj.cast(QNum.pointer()))
     elif qtype == QTYPE_QSTRING:
         return qstring_get_str(qobj.cast(QString.pointer())).string()
     elif qtype == QTYPE_QFLOAT:
