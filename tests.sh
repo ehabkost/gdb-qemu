@@ -181,6 +181,32 @@ check_expected no_prop_info -q F1 F2
 
 
 
+# no warning when the device is not compiled in:
+
+cat > F1 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "mydev"],
+  "result":{"props":[{"name":"myprop", "defval":true,
+                      "info":{"name":"bool"}}]}}]
+EOF
+cat > F2 <<EOF
+[{"request":["machine", "M"],
+  "result":{"compat_props":[{"driver":"mydev",
+                             "property":"myprop",
+                             "value":"off"}]}},
+ {"request":["device-type", "anotherdev"],
+  "result":{}}]
+EOF
+cat > EXPECTED <<EOF
+EOF
+
+check_expected no_prop_info -q F1 F2
+
+
+
 # no conflict when we know the default value for the property:
 
 cat > F1 <<EOF
