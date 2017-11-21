@@ -789,16 +789,35 @@ def compare_machine(args, ctx):
     compare_machine_simple_fields(args, ctx, m1, m2)
     compare_machine_compat_props(args, ctx, m1, m2)
 
-def compare_binaries(args, ctx):
-    machines = args.machines
-    if not machines:
+def machines_to_handle(args, ctx):
+    if args.machines:
+        return args.machines
+    else:
         machines = set(ctx.binary1.available_machines())
         machines.intersection_update(ctx.binary2.available_machines())
-    for m in machines:
+        return machines
+
+def compare_binaries(args, ctx):
+    for m in machines_to_handle(args, ctx):
         mctx = copy.copy(ctx)
         mctx.machinename = m
         dbg("will compare machine: %s", mctx)
         compare_machine(args, mctx)
+
+def print_machine(args, ctx):
+    m1 = ctx.binary1.get_machine(ctx.machinename)
+    if m1 is None:
+        return
+    logger.info('Info for %s:', ctx)
+    logger.info('  compat_props:')
+    for c in m1.get('compat_props', []):
+        logger.info('  - %(driver)s.%(property)s=%(value)r', c)
+
+def print_binary(args, ctx):
+    for m in machines_to_handle(args, ctx):
+        mctx = copy.copy(ctx)
+        mctx.machinename = m
+        print_machine(args, mctx)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -862,6 +881,7 @@ def main():
         json.dump(binaries[0].raw_data, open(args.dump_file, 'w'), indent=2)
 
     for i,b1 in enumerate(binaries):
+        #print_binary(args, ValidationContext(binary1=b1))
         for b2 in binaries[i+1:]:
             logger.info("Comparing %s and %s", b1, b2)
             ctx = ValidationContext(binary1=b1, binary2=b2)
