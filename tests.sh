@@ -52,7 +52,7 @@ cat > F2 <<EOF
                              "value":"Y"}]}}]
 EOF
 cat > EXPECTED <<EOF
-ERROR: F1 vs F2: machine M: difference at mydev.myprop (u'X' != u'Y')
+ERROR: F1 vs F2: M: difference at mydev.myprop (u'X' != u'Y')
 EOF
 
 check_expected simple_conflict -q F1 F2
@@ -118,7 +118,7 @@ cat > F2 <<EOF
                              "value":"X"}]}}]
 EOF
 cat > EXPECTED <<EOF
-WARNING: I don't know the default value of mydev.myprop in F1 (machine M)
+WARNING: F1 vs F2: M: I don't know the default value of mydev.myprop in F1
 EOF
 
 check_expected unknown_defvalue -q F1 F2
@@ -148,7 +148,7 @@ cat > F2 <<EOF
                                 "type":"bool"}]}}]
 EOF
 cat > EXPECTED <<EOF
-ERROR: Invalid property: mydev.myprop at F2:M
+ERROR: F1 vs F2: M: Invalid property: mydev.myprop at F2
 EOF
 
 check_expected invalid_prop -q F1 F2
@@ -177,7 +177,7 @@ cat > F2 <<EOF
   "result":{"props":[], "instance_props":[]}}]
 EOF
 cat > EXPECTED <<EOF
-WARNING: Not enough info to validate property: mydev.myprop at F2:M
+WARNING: F1 vs F2: M: Not enough info to validate property: mydev.myprop at F2
 EOF
 
 check_expected no_prop_info -q F1 F2
@@ -247,7 +247,7 @@ cat > F2 <<EOF
                              "value":"Y"}]}}]
 EOF
 cat > EXPECTED <<EOF
-ERROR: F1 vs F2: machine M: difference at mydev.myprop (u'X' != u'Y')
+ERROR: F1 vs F2: M: difference at mydev.myprop (u'X' != u'Y')
 EOF
 
 check_expected conflict_defvalue -q F1 F2
@@ -265,7 +265,7 @@ cat > F2 <<EOF
   "result":{"some_field": "X"}}]
 EOF
 cat > EXPECTED <<EOF
-WARNING: F1: I don't know how to deal with missing machine.some_field field in machine M
+WARNING: F1 vs F2: M: F1: I don't know how to deal with missing machine.some_field field
 EOF
 
 check_expected unknown_machine_field -q F1 F2
@@ -282,7 +282,7 @@ cat > F2 <<EOF
   "result":{"max_cpus": 99}}]
 EOF
 cat > EXPECTED <<EOF
-ERROR: F1 vs F2: machine M: difference at machine.max_cpus (100 != 99)
+ERROR: F1 vs F2: M: difference at machine.max_cpus (100 != 99)
 EOF
 
 check_expected max_cpus_mismatch -q F1 F2
