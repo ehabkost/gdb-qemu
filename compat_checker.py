@@ -151,9 +151,9 @@ def parse_property_value(prop, value):
 
     t = prop['type']
     if t is not None and re.match('u?int(|8|16|32|64)', t):
-        if type(value) == int:
-            return value
-        return int(value, base=0)
+        if type(value) in [str, unicode]:
+            value = int(value, base=0)
+        return value
     elif t == 'bool' or t == 'boolean':
         assert value in ['on', 'yes', 'true', 'off', 'no', 'false', True, False], "Invalid boolean value: %s" % (value)
         return value in ['on', 'yes', 'true', True]
