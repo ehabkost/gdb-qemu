@@ -568,6 +568,13 @@ def build_omitted_prop_dict(binary):
 
     return r
 
+def fixup_prop_value(ctx, devtype, propname, v):
+    # On some QEMU versions, the QInt conversion done by gdb-extract-qemu-info.py
+    # reads level/xlevel as int32_t values instead of uint32_t:
+    if devtype.endswith('-cpu') and propname in ['level', 'xlevel'] and v is not None:
+        return v & 0xFFFFFFFF
+    return v
+
 def calculate_prop_value(ctx, compat, devtype, propname):
     """Try to find out what's going to be the default value for a property"""
     d = devtype
@@ -611,6 +618,9 @@ def calculate_prop_value(ctx, compat, devtype, propname):
         v1 = omitted1.get(d, {}).get(p)
 
     dbg("omitted v1: %r", v1)
+
+    v1 = fixup_prop_value(ctx, devtype, propname, v1)
+    dbg("after fixup: %r", v1)
 
     if v1 is None and dt1 is not None:
         # warn about not knowing the actual default value only if the device type is
