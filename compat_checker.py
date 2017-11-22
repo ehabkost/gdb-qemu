@@ -414,6 +414,16 @@ class QEMUBinaryInfo:
         for m in self.list_requests('machine'):
             yield m['request'][1]
 
+    def qemu_version(self):
+        v = self.get_one_request('version')
+        if v is None:
+            return None
+        vhelp = v['help']
+        m = re.search(r'QEMU emulator version ([0-9.]+)', vhelp, re.M)
+        if m is None:
+            return None
+        return m.group(1)
+
     def __str__(self):
         return self.path
 
@@ -583,51 +593,51 @@ def calculate_prop_value(ctx, compat, devtype, propname):
     omitted1 = build_omitted_prop_dict(ctx.binary1)
 
     ctx.log(DEBUG, "calculating default value for %s.%s", d, p)
-    dt1 = ctx.binary1.get_devtype(d)
-    dbg("dt: %s", dt1 and dt1.get('type'))
-    pi1 = get_devtype_property_info(dt1, p)
-    dbg("pi1: %s", pi1)
-    v1 = compat.get(d, {}).get(p)
-    dbg("v1: %r", v1)
+    dt = ctx.binary1.get_devtype(d)
+    dbg("dt: %s", dt and dt.get('type'))
+    pi = get_devtype_property_info(dt, p)
+    dbg("pi: %s", pi)
+    v = compat.get(d, {}).get(p)
+    dbg("v: %r", v)
 
     # we have a problem if:
     # 1) the property is set; 2) the devtype is really supported by the binary;
     # and 3) the propert is not present.
     # This means setting compat_props will fail if the device is present
     # on a VM.
-    if pi1 is not None: # found property info
-        v1 = parse_property_value(pi1, v1)
-    elif v1 is not None and dt1 is not None:
-        if devtype_has_full_prop_info(dt1):
+    if pi is not None: # found property info
+        v = parse_property_value(pi, v)
+    elif v is not None and dt is not None:
+        if devtype_has_full_prop_info(dt):
             ctx.report_result(ERROR, "Invalid property: %s.%s" % (d, p))
         else:
             ctx.report_result(WARN, "Not enough info to validate property: %s.%s" % (d, p))
 
-    dbg("parsed v1: %r", v1)
+    dbg("parsed v: %r", v)
 
     # if property was not on compat_props, try to get the default value from
     # device property info
-    if v1 is None and pi1 is not None:
-        v1 = pi1.get('defval')
+    if v is None and pi is not None:
+        v = pi.get('defval')
 
-    dbg("defval v1: %r", v1)
+    dbg("defval v: %r", v)
 
     # if we still don't know what was the default value because the property
     # is not known, lookup the omitted-properties dictionary
-    if v1 is None and pi1 is None:
-        v1 = omitted1.get(d, {}).get(p)
+    if v is None and pi is None:
+        v = omitted1.get(d, {}).get(p)
 
-    dbg("omitted v1: %r", v1)
+    dbg("omitted v: %r", v)
 
-    v1 = fixup_prop_value(ctx, devtype, propname, v1)
-    dbg("after fixup: %r", v1)
+    v = fixup_prop_value(ctx, devtype, propname, v)
+    dbg("after fixup: %r", v)
 
-    if v1 is None and dt1 is not None:
+    if v is None and dt is not None:
         # warn about not knowing the actual default value only if the device type is
         # really supported by the machine-type
         ctx.report_result(WARN, "I don't know the default value of %s.%s" % (d, p))
 
-    return pi1, v1
+    return pi, v
 
 
 def compare_machine_compat_props(args, ctx, m1, m2):
@@ -701,7 +711,7 @@ def parse_opts(s):
         raise Exception("I don't know how to parse escaped commas on QemuOpts")
     return dict(v.split('=', 1) for v in s.split(','))
 
-def fixup_machine_field(m, field, v):
+def fixup_machine_field(ctx, m, field, v):
     """Fixup some machine fields when we know they won't match on some machine-types"""
 
     mname = m.get('name', '')
@@ -734,6 +744,20 @@ def fixup_machine_field(m, field, v):
         if v is not None:
             r.update(parse_opts(v))
         return r
+    elif field == 'hw_version' and v is None:
+        dbg('trying to find out actual hw_version for %s', ctx)
+        # hw_version=NULL has a different result depending on QEMU version:
+        qemu_ver = ctx.binary1.qemu_version()
+        dbg("qemu version: %r", qemu_ver)
+        if qemu_ver is None:
+            return v
+        ver_numbers = map(int, qemu_ver.split('.')) # '2.3.0' -> [2, 3, 0]
+        if ver_numbers[:2] > [2, 4]:
+            dbg('%r > [2, 4]', ver_numbers[:2])
+            v = '2.5+'
+        else:
+            v = qemu_ver
+        return v
     return v
 
 def compare_machine_simple_fields(args, ctx, m1, m2):
@@ -822,8 +846,8 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
         else:
             v2 = get_omitted_machine_field(m2, f)
 
-        v1 = fixup_machine_field(m1, f, v1)
-        v2 = fixup_machine_field(m2, f, v2)
+        v1 = fixup_machine_field(ctx.b1_ctx(), m1, f, v1)
+        v2 = fixup_machine_field(ctx.b2_ctx(), m2, f, v2)
 
         dbg("will compare machine.%s: %r vs %r", f, v1, v2)
         r = compare_func(v1, v2)
