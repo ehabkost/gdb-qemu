@@ -266,6 +266,8 @@ class QEMUBinaryInfo:
         subprocess.call(cmd)
         try:
             r = json.load(open(outfile))
+        except KeyboardInterrupt:
+            raise
         except:
             logger.error("Error loading JSON")
             logger.error("tmp data kept at: %s", outfile)
@@ -279,6 +281,8 @@ class QEMUBinaryInfo:
             return subprocess.Popen([self.path] + list(args),
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT).communicate()[0]
+        except KeyboardInterrupt:
+            raise
         except:
             return None
 
@@ -387,6 +391,8 @@ class QEMUBinaryInfo:
             try:
                 self.load_data_file()
                 self.type = JSON
+            except KeyboardInterrupt:
+                raise
             except:
                 pass
 
