@@ -584,11 +584,15 @@ def build_omitted_prop_dict(binary):
 
     return r
 
-def fixup_prop_value(ctx, devtype, propname, v):
+def fixup_prop_value(ctx, compat, devtype, propname, v):
     # On some QEMU versions, the QInt conversion done by gdb-extract-qemu-info.py
     # reads level/xlevel as int32_t values instead of uint32_t:
     if devtype.endswith('-cpu') and propname in ['level', 'xlevel'] and v is not None:
         return v & 0xFFFFFFFF
+    if devtype.endswith('-cpu') and propname in ['min-level', 'min-xlevel'] and v is None:
+        # if min-level/min-xlevel is not known, just use level/xlevel:
+        lprop = propname.split('-')[1]
+        return calculate_prop_value(ctx, compat, devtype, lprop)[1]
     return v
 
 def calculate_prop_value(ctx, compat, devtype, propname):
@@ -633,7 +637,7 @@ def calculate_prop_value(ctx, compat, devtype, propname):
 
     dbg("omitted v: %r", v)
 
-    v = fixup_prop_value(ctx, devtype, propname, v)
+    v = fixup_prop_value(ctx, compat, devtype, propname, v)
     dbg("after fixup: %r", v)
 
     if v is None and dt is not None:
