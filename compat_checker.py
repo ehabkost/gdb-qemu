@@ -587,17 +587,15 @@ def fixup_prop_value(ctx, devtype, propname, v):
 
 def calculate_prop_value(ctx, compat, devtype, propname):
     """Try to find out what's going to be the default value for a property"""
-    d = devtype
-    p = propname
 
     omitted1 = build_omitted_prop_dict(ctx.binary1)
 
-    ctx.log(DEBUG, "calculating default value for %s.%s", d, p)
-    dt = ctx.binary1.get_devtype(d)
+    ctx.log(DEBUG, "calculating default value for %s.%s", devtype, propname)
+    dt = ctx.binary1.get_devtype(devtype)
     dbg("dt: %s", dt and dt.get('type'))
-    pi = get_devtype_property_info(dt, p)
+    pi = get_devtype_property_info(dt, propname)
     dbg("pi: %s", pi)
-    v = compat.get(d, {}).get(p)
+    v = compat.get(devtype, {}).get(propname)
     dbg("v: %r", v)
 
     # we have a problem if:
@@ -609,9 +607,9 @@ def calculate_prop_value(ctx, compat, devtype, propname):
         v = parse_property_value(pi, v)
     elif v is not None and dt is not None:
         if devtype_has_full_prop_info(dt):
-            ctx.report_result(ERROR, "Invalid property: %s.%s" % (d, p))
+            ctx.report_result(ERROR, "Invalid property: %s.%s" % (devtype, propname))
         else:
-            ctx.report_result(WARN, "Not enough info to validate property: %s.%s" % (d, p))
+            ctx.report_result(WARN, "Not enough info to validate property: %s.%s" % (devtype, propname))
 
     dbg("parsed v: %r", v)
 
@@ -625,7 +623,7 @@ def calculate_prop_value(ctx, compat, devtype, propname):
     # if we still don't know what was the default value because the property
     # is not known, lookup the omitted-properties dictionary
     if v is None and pi is None:
-        v = omitted1.get(d, {}).get(p)
+        v = omitted1.get(devtype, {}).get(propname)
 
     dbg("omitted v: %r", v)
 
@@ -635,7 +633,7 @@ def calculate_prop_value(ctx, compat, devtype, propname):
     if v is None and dt is not None:
         # warn about not knowing the actual default value only if the device type is
         # really supported by the machine-type
-        ctx.report_result(WARN, "I don't know the default value of %s.%s" % (d, p))
+        ctx.report_result(WARN, "I don't know the default value of %s.%s" % (devtype, propname))
 
     return pi, v
 
