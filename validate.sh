@@ -5,7 +5,7 @@ ARGS=("$@")
 FAILURES=0
 
 validate() {
-    ./compat_checker.py "$@" "${ARGS[@]}"
+    ./compat_checker.py "$@" "${ARGS[@]}" || let FAILURES+=1
 }
 
 #TODO: detect failures/warnings and return appropriate exit code
@@ -27,3 +27,8 @@ validate -M pc-i440fx-rhel7.1.0 reference-dumps/qemu-kvm-rhev-2.1.2-23.el7.x86_6
 validate -M pc-i440fx-rhel7.2.0 reference-dumps/qemu-kvm-rhev-2.3.0-31.el7.x86_64.json
 validate -M pc-i440fx-rhel7.3.0 reference-dumps/qemu-kvm-rhev-2.6.0-27.el7.x86_64.json
 validate -M pc-i440fx-rhel7.4.0 reference-dumps/qemu-kvm-rhev-2.9.0-14.el7.x86_64.json
+
+if [ "$FAILURES" -gt 0 ];then
+    echo "$FAILURES failures above" >&2
+    exit 1
+fi
