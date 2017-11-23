@@ -464,18 +464,140 @@ def build_omitted_prop_dict(binary):
         # commit 9954a1582e18b03ddb66f6c892dccf2c3508f4b2:
         ('x86_64-cpu',           'vmware-cpuid-freq',             False),
         ('i386-cpu',             'vmware-cpuid-freq',             False),
+        # commit e265e3e48049fbece9eaf536aa00ca41aa3c54d0:
+        ('x86_64-cpu',           'host-cache-info',                True),
+        ('i386-cpu',             'host-cache-info',                True),
         # CPU feature flags that were always off when we introduced them:
         ('x86_64-cpu',           'arat',                          False),
         ('i386-cpu',             'arat',                          False),
+        ('x86_64-cpu',           'rdrand',                        False),
+        ('i386-cpu',             'rdrand',                        False),
+        ('x86_64-cpu',           'f16c',                          False),
+        ('i386-cpu',             'f16c',                          False),
+
+        # * VME was already enabled on all CPU models when we added CPU
+        #   feature properties (commit 38e5c119c2925812bd441450ab9e5e00fc79e662
+        #   v2.4.0-rc0~101^2~1).
+        # * However, VME was always disabled on TCG mode and this wasn't
+        #   reported throught the QOM properties until
+        #   commit 04d99c3c61f4bdc0450dbeb6512b6dd743baca65 (v2.8.0-rc0~74^2~18)
+        # * To make it worse, VME was disabled on all CPU models until
+        #   commit b3a4f0b1a072a467d003755ca0e55c5be38387cb (v2.3.0-rc0~137^2~13)
+        #('x86_64-cpu',           'vme',                          ???),
+        #('i386-cpu',             'vme',                          ???),
+
+        # * ABM was already enabled on qemu64, phenom, kvm64, Opteron_G3,
+        #   Opteron_G4, and Opteron_G5 when we added CPU feature properties
+        #   (commit 38e5c119c2925812bd441450ab9e5e00fc79e662 v2.4.0-rc0~101^2~1)
+        # * Note that we have removed ABM from qemu64 on
+        #   commit 711956722c6764336f8b78a2106e57c55f02f36d (v2.5.0-rc0~28^2~2),
+        #   but this should be handled properly because CPU featur properties
+        #   were already available in QEMU 2.4.0
+        #
+        # the default:
+        ('x86_64-cpu',            'abm',                        False),
+        ('i386-cpu',              'abm',                        False),
+        # these below override the default above:
+        ('qemu64-x86_64-cpu',     'abm',                         True),
+        ('qemu64-i386-cpu',       'abm',                         True),
+        ('phenom-x86_64-cpu',     'abm',                         True),
+        ('phenom-i386-cpu',       'abm',                         True),
+        ('kvm64-x86_64-cpu',      'abm',                         True),
+        ('kvm64-i386-cpu',        'abm',                         True),
+        ('Opteron_G3-x86_64-cpu', 'abm',                         True),
+        ('Opteron_G3-i386-cpu',   'abm',                         True),
+        ('Opteron_G4-x86_64-cpu', 'abm',                         True),
+        ('Opteron_G4-i386-cpu',   'abm',                         True),
+        ('Opteron_G5-x86_64-cpu', 'abm',                         True),
+        ('Opteron_G5-i386-cpu',   'abm',                         True),
+
+        # * SSE4A was already enabled on qemu64, phenom, kvm64, Opteron_G3,
+        #   Opteron_G4, and Opteron_G5 when we added CPU feature properties
+        #   (commit 38e5c119c2925812bd441450ab9e5e00fc79e662 v2.4.0-rc0~101^2~1)
+        # the default:
+        ('x86_64-cpu',            'sse4a',                      False),
+        ('i386-cpu',              'sse4a',                      False),
+        # these below override the default above:
+        ('qemu64-x86_64-cpu',     'sse4a',                       True),
+        ('qemu64-i386-cpu',       'sse4a',                       True),
+        ('phenom-x86_64-cpu',     'sse4a',                       True),
+        ('phenom-i386-cpu',       'sse4a',                       True),
+        ('kvm64-x86_64-cpu',      'sse4a',                       True),
+        ('kvm64-i386-cpu',        'sse4a',                       True),
+        ('Opteron_G3-x86_64-cpu', 'sse4a',                       True),
+        ('Opteron_G3-i386-cpu',   'sse4a',                       True),
+        ('Opteron_G4-x86_64-cpu', 'sse4a',                       True),
+        ('Opteron_G4-i386-cpu',   'sse4a',                       True),
+        ('Opteron_G5-x86_64-cpu', 'sse4a',                       True),
+        ('Opteron_G5-i386-cpu',   'sse4a',                       True),
+
+        # * POPCNT was already enabled on many CPU models when we added CPU feature
+        #   properties (commit 38e5c119c2925812bd441450ab9e5e00fc79e662
+        #   v2.4.0-rc0~101^2~1)
+        #
+        # the default:
+        ('x86_64-cpu',                 'popcnt',                False),
+        ('i386-cpu',                   'popcnt',                False),
+        # these below override the default above:
+        ("qemu64-x86_64-cpu",          "popcnt",                 True),
+        ("qemu64-i386-cpu",            "popcnt",                 True),
+        ("phenom-x86_64-cpu",          "popcnt",                 True),
+        ("phenom-i386-cpu",            "popcnt",                 True),
+        ("qemu32-x86_64-cpu",          "popcnt",                 True),
+        ("qemu32-i386-cpu",            "popcnt",                 True),
+        ("Nehalem-x86_64-cpu",         "popcnt",                 True),
+        ("Nehalem-i386-cpu",           "popcnt",                 True),
+        ("Westmere-x86_64-cpu",        "popcnt",                 True),
+        ("Westmere-i386-cpu",          "popcnt",                 True),
+        ("SandyBridge-x86_64-cpu",     "popcnt",                 True),
+        ("SandyBridge-i386-cpu",       "popcnt",                 True),
+        ("IvyBridge-x86_64-cpu",       "popcnt",                 True),
+        ("IvyBridge-i386-cpu",         "popcnt",                 True),
+        ("Haswell-noTSX-x86_64-cpu",   "popcnt",                 True),
+        ("Haswell-noTSX-i386-cpu",     "popcnt",                 True),
+        ("Haswell-x86_64-cpu",         "popcnt",                 True),
+        ("Haswell-i386-cpu",           "popcnt",                 True),
+        ("Broadwell-noTSX-x86_64-cpu", "popcnt",                 True),
+        ("Broadwell-noTSX-i386-cpu",   "popcnt",                 True),
+        ("Broadwell-x86_64-cpu",       "popcnt",                 True),
+        ("Broadwell-i386-cpu",         "popcnt",                 True),
+        ("Opteron_G3-x86_64-cpu",      "popcnt",                 True),
+        ("Opteron_G3-i386-cpu",        "popcnt",                 True),
+        ("Opteron_G4-x86_64-cpu",      "popcnt",                 True),
+        ("Opteron_G4-i386-cpu",        "popcnt",                 True),
+        ("Opteron_G5-x86_64-cpu",      "popcnt",                 True),
+        ("Opteron_G5-i386-cpu",        "popcnt",                 True),
+
+
+        # * RDTSCP was already enabled on many CPU models when we added CPU feature
+        #   properties (commit 38e5c119c2925812bd441450ab9e5e00fc79e662
+        #   v2.4.0-rc0~101^2~1)
+        #
+        # the default:
+        ('x86_64-cpu',                 'rdtscp',              False),
+        ('i386-cpu',                   'rdtscp',              False),
+        # these below override the default above:
+        ("phenom-x86_64-cpu",          "rdtscp",               True),
+        ("SandyBridge-x86_64-cpu",     "rdtscp",               True),
+        ("IvyBridge-x86_64-cpu",       "rdtscp",               True),
+        ("Haswell-noTSX-x86_64-cpu",   "rdtscp",               True),
+        ("Haswell-x86_64-cpu",         "rdtscp",               True),
+        ("Broadwell-noTSX-x86_64-cpu", "rdtscp",               True),
+        ("Broadwell-x86_64-cpu",       "rdtscp",               True),
+        ("Opteron_G2-x86_64-cpu",      "rdtscp",               True),
+        ("Opteron_G3-x86_64-cpu",      "rdtscp",               True),
+        ("Opteron_G4-x86_64-cpu",      "rdtscp",               True),
+        ("Opteron_G5-x86_64-cpu",      "rdtscp",               True),
+
         # these ones might be true or false, it depends on the CPU model, and
         # it would require copying everything from the CPU model table
         # 38e5c119c2925812bd441450ab9e5e00fc79e662^
-        #('x86_64-cpu',           'sse4a',                         False),
-        #('i386-cpu',             'sse4a',                         False),
-        #('x86_64-cpu',           'abm',                           False),
-        #('i386-cpu',             'abm',                           False),
-        #('x86_64-cpu',           'popcnt',                        False),
-        #('i386-cpu',             'popcnt',                        False),
+        #('x86_64-cpu',           'sse4a',                         ???),
+        #('i386-cpu',             'sse4a',                         ???),
+        #('x86_64-cpu',           'abm',                           ???),
+        #('i386-cpu',             'abm',                           ???),
+        #('x86_64-cpu',           'popcnt',                        ???),
+        #('i386-cpu',             'popcnt',                        ???),
 
         ('virtio-pci',           'x-pcie-pm-init',                False),
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),

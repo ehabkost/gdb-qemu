@@ -13,6 +13,10 @@ ERROR: .* pc-q35-rhel7\.[012]\.0: difference at machine\.hw_version
 ERROR: .* pc-i440fx-rhel7\.1\.0: difference at VGA\.qemu-extended-regs
 ERROR: .* pc-i440fx-rhel7\.1\.0: difference at secondary-vga\.qemu-extended-regs
 ####
+# Looks like a real bug, needs to be investigated:
+ERROR: .* pc-i440fx-rhel7\.[01]\.0: difference at phenom-x86_64-cpu\.rdtscp
+ERROR: .* pc-q35-rhel7\.[01]\.0: difference at phenom-x86_64-cpu\.rdtscp
+####
 # Bug reported at: https://bugzilla.redhat.com/show_bug.cgi?id=1511312
 ERROR: .* pc-i440fx-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
 ERROR: .* pc-q35-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
@@ -24,3 +28,12 @@ ERROR: .* pc-q35-rhel7\.0\.0: difference at machine\.max_cpus \(255 \!= 240\)
 # Looks like a real bug, needs to be investigated:
 ERROR: .* pc-i440fx-2\.6: difference at fw_cfg_io.dma_enabled
 ERROR: .* pc-q35-2\.6: difference at fw_cfg_io.dma_enabled
+####
+# See the comments about ABM on compat_checker.py for an explanation why
+# it's hard to get rid of this warning:
+WARNING: .* I don't know the default value of .*-cpu\.vme
+####
+# We can't capture host-*-cpu properties on some QEMU versions using GDB,
+# so this warning might appear:
+WARNING: .* Not enough info to validate property: host-x86_64-cpu\..*
+WARNING: .* Not enough info to validate property: host-i386-cpu\..*
