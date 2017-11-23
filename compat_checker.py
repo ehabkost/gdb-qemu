@@ -643,6 +643,8 @@ def build_omitted_prop_dict(binary):
         ('xio3130-downstream',   'power_controller_present',      False),
         ('ioh3420',              'power_controller_present',      False),
         ('vmxnet3',              'x-disable-pcie',                 True),
+        # commit b22e0aef462df40e3355ee1cdf707b9578d23706:
+        ('vmxnet3',              'x-old-msi-offsets',              True),
         ('VGA',                  'qemu-extended-regs',            False),
         ('usb-redir',            'streams',                       False),
         ('usb-mouse',            'usb_version',                       1),
@@ -687,6 +689,10 @@ def build_omitted_prop_dict(binary):
         ('amd-iommu',            'pt',                            False),
         # commit b8bab8eb6934cbf6577a18a9c5657d7707379ac0:
         ('ICH9-LPC',             'x-smi-broadcast',               False),
+        # commit 952970ba5651e8f6d1fec7de0366c63a79cadfdb:
+        ('pvscsi',               'x-old-pci-configuration',        True),
+        # commit d5da3ef2e24c29ddb92e11a54d705873acb905bf:
+        ('pvscsi',               'x-disable-pcie',                 True),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
