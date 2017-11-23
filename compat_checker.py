@@ -870,7 +870,7 @@ def fixup_machine_field(ctx, m, field, v):
     elif field == 'default_cpus' and v == 0:
         # default_cpus == 0 is the same as default_cpus == 1
         return 1
-    elif field == 'default_cpu_type' and v is None and re.match('pc-.*|rhel[67]\..*', mname):
+    elif field == 'default_cpu_type' and v is UNKNOWN_VALUE and re.match('pc-.*|rhel[67]\..*', mname):
         for t in ['qemu64-x86_64-cpu', 'qemu64-i386-cpu']:
             if ctx.binary1.get_devtype(t):
                 return t
