@@ -729,19 +729,15 @@ def parse_opts(s):
     return dict(v.split('=', 1) for v in s.split(','))
 
 def fixup_machine_field(ctx, m, field, v):
-    """Fixup some machine fields when we know they won't match on some machine-types"""
+    """Fixup some machine fields when the info we have might be wrong or generate false positives"""
 
     mname = m.get('name', '')
-    if field == 'max_cpus' and re.match(r'rhel6\..*|pc-.*-rhel7\..*', mname) and v == 255:
-        #rhel6.* machine-types had max_cpus=255 on qemu-kvm-1.5.3:
-        #TODO: probably not a bug, but we need to confirm that:
-        return 240
-    elif mname == 'none' and \
-         re.match('(|default_)boot_order|default_ram_size|block_default_type|max_cpus', field):
-        # boot order doesn't matter for -machine none
+    if mname == 'none' and \
+         re.match('(|default_)boot_order|default_ram_size|block_default_type', field):
+        # those fields don't matter for -machine none at all
         return None
     elif field == 'default_display' and v is None:
-        # default_display= NULL and default_display="cirrus" are (supposed to be) equivalent
+        # default_display=NULL and default_display="cirrus" are (supposed to be) equivalent
         return 'cirrus'
     elif field == 'min_cpus' and v == 0:
         # min_cpus == 0 is the same as min_cpus == 1
@@ -752,9 +748,11 @@ def fixup_machine_field(ctx, m, field, v):
     elif field == 'default_cpus' and v == 0:
         # default_cpus == 0 is the same as default_cpus == 1
         return 1
-    elif field == 'default_cpu_type' and re.match('pc-.*|rhel[67]\..*', mname):
-        #FIXME: check if x86_64 or i386
-        return 'qemu64-x86_64-cpu'
+    elif field == 'default_cpu_type' and v is None and re.match('pc-.*|rhel[67]\..*', mname):
+        for t in ['qemu64-x86_64-cpu', 'qemu64-i386-cpu']:
+            if ctx.binary1.get_devtype(t):
+                return t
+        return v
     elif field == 'default_machine_opts':
         # assume firmware=bios.bin to be present if omitted:
         r = {'firmware':'bios.bin'}
@@ -792,6 +790,17 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
             return
         return v1 == v2
 
+    def ensure_v2_ge(v1, v2):
+        """Ensure v2 is greater or equal to v1.  Useful when a property representes a limit, not a ABI-visible value"""
+        if v1 is UNKNOWN_VALUE:
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b1, f))
+            return
+        if v2 is UNKNOWN_VALUE:
+            ctx.report_result(WARN, "%s: I don't know how to deal with missing machine.%s field" % (b2, f))
+            return
+        return v2 >= v1
+
+
     def ignore_unknown_value(v1, v2):
         """Compare values, but don't print a warning if we don't know one of them"""
         return (v1 is UNKNOWN_VALUE) or (v2 is UNKNOWN_VALUE) or (v1 == v2)
@@ -818,6 +827,9 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
         # set them to true and others set them to false
         'option_rom_has_mr': ignore_unknown_value,
         'rom_file_has_mr': ignore_unknown_value,
+
+        # max_cpus doesn't need to match exactly: we just need it to be greater or equal
+        'max_cpus': ensure_v2_ge,
 
         # things we skip and won't try to validate:
 
