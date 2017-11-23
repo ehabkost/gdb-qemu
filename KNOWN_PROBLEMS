@@ -1,0 +1,8 @@
+# This is a whitelist of known errors.  It is used as input for 'egrep -v -f'
+# so known errors are filtered out
+ERROR: .* pc-i440fx-rhel7\.3\.0: difference at virtio-mmio\.format_transport_address
+ERROR: .* pc-i440fx-rhel7\.[012]\.0: difference at machine\.hw_version
+ERROR: .* pc-i440fx-rhel7\.1\.0: difference at VGA\.qemu-extended-regs
+ERROR: .* pc-i440fx-rhel7\.1\.0: difference at secondary-vga\.qemu-extended-regs
+# Bug reported at:
+ERROR: .* pc-i440fx-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
