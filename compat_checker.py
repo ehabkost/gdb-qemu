@@ -710,7 +710,7 @@ def fixup_prop_value(ctx, compat, devtype, propname, v):
     # On some QEMU versions, the QInt conversion done by gdb-extract-qemu-info.py
     # reads level/xlevel as int32_t values instead of uint32_t:
     if devtype.endswith('-cpu') and propname in ['level', 'xlevel'] and v is not None:
-        return v & 0xFFFFFFFF
+        return int(v) & 0xFFFFFFFF
     if devtype.endswith('-cpu') and propname in ['min-level', 'min-xlevel'] and v is None:
         # if min-level/min-xlevel is not known, just use level/xlevel:
         lprop = propname.split('-')[1]
