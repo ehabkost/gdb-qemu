@@ -20,3 +20,7 @@ ERROR: .* pc-q35-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
 # Probably not a real issue, if the limit enforced by the KVM module was 240 in RHEL-7.0:
 ERROR: .* pc-i440fx-rhel7\.0\.0: difference at machine.max_cpus \(255 != 240\)
 ERROR: .* pc-q35-rhel7\.0\.0: difference at machine\.max_cpus \(255 \!= 240\)
+####
+# Looks like a real bug, needs to be investigated:
+ERROR: .* pc-i440fx-2\.6: difference at fw_cfg_io.dma_enabled
+ERROR: .* pc-q35-2\.6: difference at fw_cfg_io.dma_enabled
