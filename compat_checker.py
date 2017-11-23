@@ -830,6 +830,8 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
 
         # max_cpus doesn't need to match exactly: we just need it to be greater or equal
         'max_cpus': ensure_v2_ge,
+        # has_dynamic_sybus can also change from 0 to 1, but not the other way around:
+        'has_dynamic_sysbus': ensure_v2_ge,
 
         # things we skip and won't try to validate:
 
