@@ -593,6 +593,15 @@ def fixup_prop_value(ctx, compat, devtype, propname, v):
         # if min-level/min-xlevel is not known, just use level/xlevel:
         lprop = propname.split('-')[1]
         return calculate_prop_value(ctx, compat, devtype, lprop)[1]
+    if devtype in ['qemu64-x86_64-cpu', 'qemu32-x86_64-cpu', 'athlon-x86_64-cpu', \
+                   'qemu64-i386-cpu', 'qemu32-i386-cpu', 'athlon-i386-cpu'] and \
+       propname == 'model-id' and v == '':
+        # workaround for gdb-extract-qemu-info.py limitation: x86_cpudef_setup()
+        # called too late and won't run before we extract property info
+        ver = ctx.binary1.qemu_version()
+        if ver is None:
+            return v
+        return 'QEMU Virtual CPU version %s' % (ver)
     return v
 
 def calculate_prop_value(ctx, compat, devtype, propname):
