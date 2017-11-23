@@ -870,10 +870,10 @@ def compare_machine(args, ctx):
     m1 = ctx.binary1.get_machine(ctx.machinename)
     m2 = ctx.binary2.get_machine(ctx.machinename)
     if m1 is None:
-        logger.warn("%s doesn't have info about machine %s" % (ctx.binary1, ctx.machinename))
+        logger.info("%s doesn't have info about machine %s" % (ctx.binary1, ctx.machinename))
         return
     if m2 is None:
-        logger.warn("%s doesn't have info about machine %s" % (ctx.binary2, ctx.machinename))
+        logger.info("%s doesn't have info about machine %s" % (ctx.binary2, ctx.machinename))
         return
 
     compare_machine_simple_fields(args, ctx, m1, m2)
