@@ -6,6 +6,9 @@ ERROR: .* pc-i440fx-rhel7\.[012]\.0: difference at machine\.hw_version
 ERROR: .* pc-q35-rhel7\.[012]\.0: difference at machine\.hw_version
 ERROR: .* pc-i440fx-rhel7\.1\.0: difference at VGA\.qemu-extended-regs
 ERROR: .* pc-i440fx-rhel7\.1\.0: difference at secondary-vga\.qemu-extended-regs
-# Bug reported at:
+# Bug reported at: https://bugzilla.redhat.com/show_bug.cgi?id=1511312
 ERROR: .* pc-i440fx-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
 ERROR: .* pc-q35-rhel7\.4\.0: difference at pcie-root-port\.x-migrate-msix
+# Probably not a real issue, if the limit enforced by the KVM module was 240 in RHEL-7.0:
+ERROR: .* pc-i440fx-rhel7\.0\.0: difference at machine.max_cpus (255 != 240)
+ERROR: .* pc-q35-rhel7\.0\.0: difference at machine.max_cpus (255 != 240)
