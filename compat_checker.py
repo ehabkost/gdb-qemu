@@ -475,6 +475,17 @@ def build_omitted_prop_dict(binary):
         ('x86_64-cpu',           'f16c',                          False),
         ('i386-cpu',             'f16c',                          False),
 
+        # * VMX was disabled on all CPU models when we added CPU
+        #   feature properties (commit 38e5c119c2925812bd441450ab9e5e00fc79e662
+        #   v2.4.0-rc0~101^2~1).
+        # * However, it was enabled on core2duo and coreduo between
+        #   commit 8560efed6a72a816c0115f41ddb9d79f7ce63f28 (v0.13.0-rc0~1093)
+        #   and commit e93abc147fa628650bdbe7fd57f27462ca40a3c2 (v2.2.0-rc0~5^2~1).
+        # * Probably it is possible to work around this by looking at
+        #   the "feature-words" property
+        #('x86_64-cpu',           'vmx',                           ???),
+        #('i386-cpu',             'vmx',                           ???),
+
         # * VME was already enabled on all CPU models when we added CPU
         #   feature properties (commit 38e5c119c2925812bd441450ab9e5e00fc79e662
         #   v2.4.0-rc0~101^2~1).
@@ -482,7 +493,9 @@ def build_omitted_prop_dict(binary):
         #   reported throught the QOM properties until
         #   commit 04d99c3c61f4bdc0450dbeb6512b6dd743baca65 (v2.8.0-rc0~74^2~18)
         # * To make it worse, VME was disabled on all CPU models until
-        #   commit b3a4f0b1a072a467d003755ca0e55c5be38387cb (v2.3.0-rc0~137^2~13)
+        #   commit b3a4f0b1a072a467d003755ca0e55c5be38387cb (v2.3.0-rc0~137^2~13),
+        # * Probably it is possible to work around this by looking at
+        #   the "feature-words" property
         #('x86_64-cpu',           'vme',                          ???),
         #('i386-cpu',             'vme',                          ???),
 
@@ -609,6 +622,8 @@ def build_omitted_prop_dict(binary):
         ('virtio-pci',           'migrate-extra',                 False),
         ('virtio-pci',           'disable-modern',                 True),
         ('virtio-pci',           'disable-legacy',                False),
+        # commit f58b39d2d5b6dea1a757e1dc7d67a44eac1c4f9c
+        ('virtio-mmio',          'format_transport_address',      False),
         ('virtio-serial-device', 'emergency-write',               False),
         ('virtio-net-pci',       'guest_announce',                False),
         ('virtio-net-pci',       'ctrl_guest_offloads',           False),
@@ -619,6 +634,8 @@ def build_omitted_prop_dict(binary):
         # value for virtio-pci too.
         ('virtio-device',        'any_layout',                    False),
         ('virtio-pci',           'any_layout',                    False),
+        # commit a4c0d1deb785611c96a455f65ec032976b00b36f:
+        ('fw_cfg',               'dma_enabled',                   False),
         ('fw_cfg_io',            'x-file-slots',                   0x10),
         ('fw_cfg_mem',           'x-file-slots',                   0x10),
         ('intel-iommu',          'x-buggy-eim',                    True),
@@ -647,7 +664,9 @@ def build_omitted_prop_dict(binary):
         ('intel-hda',            'old_msi_addr',                   True),
         ('ich9-intel-hda',       'old_msi_addr',                   True),
         ('e1000',                'mitigation',                    False),
+        ('e1000-82540em',        'mitigation',                    False),
         ('e1000',                'extra_mac_registers',           False),
+        ('e1000-82540em',        'extra_mac_registers',           False),
         ('pci-bridge',           'shpc',                           True),
         # commit 5e89dc01133f8f5e621f6b66b356c6f37d31dafb:
         ('i82559a',              'x-use-alt-device-id',           False),
