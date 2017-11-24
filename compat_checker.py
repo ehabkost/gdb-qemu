@@ -602,16 +602,6 @@ def build_omitted_prop_dict(binary):
         ("Opteron_G4-x86_64-cpu",      "rdtscp",               True),
         ("Opteron_G5-x86_64-cpu",      "rdtscp",               True),
 
-        # these ones might be true or false, it depends on the CPU model, and
-        # it would require copying everything from the CPU model table
-        # 38e5c119c2925812bd441450ab9e5e00fc79e662^
-        #('x86_64-cpu',           'sse4a',                         ???),
-        #('i386-cpu',             'sse4a',                         ???),
-        #('x86_64-cpu',           'abm',                           ???),
-        #('i386-cpu',             'abm',                           ???),
-        #('x86_64-cpu',           'popcnt',                        ???),
-        #('i386-cpu',             'popcnt',                        ???),
-
         ('virtio-pci',           'x-pcie-pm-init',                False),
         ('virtio-pci',           'x-pcie-lnkctl-init',            False),
         ('virtio-pci',           'x-pcie-deverr-init',            False),
