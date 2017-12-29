@@ -1,11 +1,15 @@
 #!/bin/bash
 # Wrapper to validate a given QEMU binary/dump against reference dumps
 ARGS=("$@")
+tmpdir="$(mktemp -d)"
 
 FAILURES=0
 
 validate() {
-    ./compat_checker.py "$@" "${ARGS[@]}" || let FAILURES+=1
+    ./compat_checker.py -q "$@" "${ARGS[@]}" 2>&1 | grep -v -f KNOWN_PROBLEMS | tee "$tmpdir/output"
+    if [ -s "$tmpdir/output" ];then
+        let FAILURES+=1
+    fi
 }
 
 #TODO: detect failures/warnings and return appropriate exit code
@@ -42,6 +46,8 @@ validate -M pc-i440fx-rhel7.3.0 reference-dumps/qemu-kvm-rhev-2.6.0-27.el7.x86_6
 validate -M pc-q35-rhel7.3.0 reference-dumps/qemu-kvm-rhev-2.6.0-27.el7.x86_64.json
 validate -M pc-i440fx-rhel7.4.0 reference-dumps/qemu-kvm-rhev-2.9.0-14.el7.x86_64.json
 validate -M pc-q35-rhel7.4.0 reference-dumps/qemu-kvm-rhev-2.9.0-14.el7.x86_64.json
+
+rm -rf "$tmpdir"
 
 if [ "$FAILURES" -gt 0 ];then
     echo "$FAILURES failures above" >&2
