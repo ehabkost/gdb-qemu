@@ -858,6 +858,11 @@ def get_omitted_machine_field(m, field):
 
         'ignore_memory_transaction_failures': False,
         'valid_cpu_types': None,
+
+        # translate allowed_dynamic_sysbus_devices and has_dynamic_sysbus:
+        'allowed_dynamic_sysbus_devices': (['sys-bus-device'] if m.get('has_dynamic_sysbus') else []),
+        #FIXME: gdb-extract-qemu-info.py doesn't translate strList, returns just {}
+        'has_dynamic_sysbus': (1 if m.get('allowed_dynamic_sysbus_devices') is not None else 0),
     }
 
     return OMITTED_MACHINE_FIELDS.get(field, UNKNOWN_VALUE)
@@ -954,6 +959,14 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
         """Just check if both values are NULL or non-NULL"""
         return (v1 is None) == (v2 is None)
 
+    def compare_sysbus_list(v1, v2):
+        """The allowed sysbus list is allowed to grow, not shrink"""
+        #FIXME: gdb-extract-qemu-info.py doesn't translate strList, returns just {},
+        #       so all we can do is to check if the list didn't become empty
+        v1empty = v1 is None or v1 == []
+        v2empty = v2 is None or v2 == []
+        return v1empty or not v2empty
+
     fields = set(m1.keys() + m2.keys())
 
     KNOWN_FIELDS = {
@@ -971,6 +984,7 @@ def compare_machine_simple_fields(args, ctx, m1, m2):
         'max_cpus': ensure_v2_ge,
         # has_dynamic_sybus can also change from 0 to 1, but not the other way around:
         'has_dynamic_sysbus': ensure_v2_ge,
+        'allowed_dynamic_sysbus_devices': compare_sysbus_list,
 
         # things we skip and won't try to validate:
 
