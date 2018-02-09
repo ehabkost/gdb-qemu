@@ -683,6 +683,8 @@ def build_omitted_prop_dict(binary):
         ('pvscsi',               'x-old-pci-configuration',        True),
         # commit d5da3ef2e24c29ddb92e11a54d705873acb905bf:
         ('pvscsi',               'x-disable-pcie',                 True),
+        # commit 829600a519386c7b188d5d813e78ba69bf0bd323
+        ('hpet',                 'hpet-offset-saved',             False),
 
         #XXX: this probably doesn't match the upstream QEMU behavior,
         #     but we probably will never compare machine-types containing
