@@ -41,3 +41,7 @@ WARNING: .* I don't know the default value of .*-cpu\.vmx
 # so this warning might appear:
 WARNING: .* Not enough info to validate property: host-x86_64-cpu\..*
 WARNING: .* Not enough info to validate property: host-i386-cpu\..*
+####
+# Not knowing the actual default value of a property shouldn't
+# break CI scripts
+WARNING: .* I don't know the default value of .*
