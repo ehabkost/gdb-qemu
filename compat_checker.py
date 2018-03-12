@@ -278,9 +278,14 @@ class QEMUBinaryInfo:
     def get_stdout(self, *args):
         """Helper to simply run QEMU and get stdout output"""
         try:
+            # ignore non-utf8 data to avoid crashing because of
+            # https://bugzilla.redhat.com/show_bug.cgi?id=1532195
             return subprocess.Popen([self.path] + list(args),
                                     stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT).communicate()[0]
+                                    stderr=subprocess.STDOUT)\
+                   .communicate()[0]\
+                   .decode('utf-8','ignore')\
+                   .encode("utf-8")
         except KeyboardInterrupt:
             raise
         except:
