@@ -6,7 +6,7 @@ tmpdir="$(mktemp -d)"
 FAILURES=0
 
 validate() {
-    ./compat_checker.py -q "$@" "${ARGS[@]}" 2>&1 | grep -v -f KNOWN_PROBLEMS | tee "$tmpdir/output"
+    ./compat_checker.py -q "$@" "${ARGS[@]}" 2>&1 | egrep -v -f KNOWN_PROBLEMS | tee "$tmpdir/output"
     if [ -s "$tmpdir/output" ];then
         let FAILURES+=1
     fi
