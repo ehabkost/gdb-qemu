@@ -66,6 +66,13 @@ def T(name):
     """Shortcuto to gdb.lookup_type()"""
     return gdb.lookup_type(name)
 
+def S(name):
+    """Shortcut to T('struct '+name)
+
+    Useful to avoid gdb slowdown due to typedef lookups.
+    """
+    return T('struct {}'.format(name))
+
 AUTO_GLOBALS = [
   'error_get_pretty',
   'find_machine',
@@ -79,7 +86,6 @@ AUTO_GLOBALS = [
   'object_class_get_parent',
   'object_class_is_abstract',
   'object_new',
-  'object_property_get_qobject',
   'object_property_iter_init',
   'object_property_iter_next',
   'object_property_iter_free',
@@ -99,6 +105,8 @@ AUTO_GLOBALS = [
   'QNUM_U64',
   'QNUM_DOUBLE',
 
+  (E, 'object_property_get_qobject', '*(struct QObject *(*)(Object *, const char *, Error **))object_property_get_qobject'),
+
   (E, 'devstr', '"device"'),
 
   # need this hack to make it work even if we don't have glib
@@ -106,21 +114,23 @@ AUTO_GLOBALS = [
   (E, 'g_malloc0', '*(void *(*)(unsigned long))g_malloc0'),
 
   (T, 'char'),
-  (T, 'DeviceClass'),
   (T, 'Error'),
   (T, 'GArray'),
-  (T, 'GlobalProperty'),
   (T, 'long'),
   (T, 'ulong', 'unsigned long'),
-  (T, 'MachineClass'),
-  (T, 'ObjectClass'),
   (T, 'ObjectPropertyIterator'),
-  (T, 'QBool'),
-  (T, 'QFloat'),
-  (T, 'QInt'),
-  (T, 'QNum'),
-  (T, 'QString'),
   (T, 'QEnumLookup'),
+
+  (S, 'DeviceClass'),
+  (S, 'MachineClass'),
+  (S, 'ObjectClass'),
+  (S, 'GlobalProperty'),
+  (S, 'QObject'),
+  (S, 'QBool'),
+  (S, 'QFloat'),
+  (S, 'QInt'),
+  (S, 'QNum'),
+  (S, 'QString'),
 ]
 
 def register_auto_globals():
