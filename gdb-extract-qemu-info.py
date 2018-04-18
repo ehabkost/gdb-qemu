@@ -230,12 +230,14 @@ def enumerate_fields(t):
 
 def find_field(t, fieldname):
     """Find a field on a value or type"""
+    dbg("find_field(%r, %r) called", t, fieldname)
     if type(t) == gdb.Value:
         t = t.type
     if t.code == gdb.TYPE_CODE_PTR:
         t = t.target()
     for f in t.fields():
         if f.name == fieldname:
+            dbg("find_field(%r, %r) -> %r", t, fieldname, f)
             return f
 
 def value_to_py(v, follow_pointer=False):
@@ -296,10 +298,11 @@ def value_to_dict(v, follow_pointers={}):
     for f in v.type.fields():
         fv = v[f.name]
         try:
-            dbg("r[%r] = value_to_py(%s)", f.name, fv)
+            dbg("r[%r] = value_to_py(%r)", f.name, fv)
             r[f.name] = value_to_py(fv, follow_pointers.get(f.name))
         except ValueError:
             pass
+    dbg("value_to_dict(%r) -> %r", v, r)
     return r
 
 
@@ -461,13 +464,18 @@ def qnum_value(qn):
 
 def qobject_value(qobj):
     """Convert QObject value to a Python value"""
+    dbg("qobject_value(%r) called", qobj)
     #dbg("qobj: %r", value_to_dict(qobj))
     #dbg("qobj type: %s (size: %d)" % (qobj.type, qobj.type.sizeof))
     #execute("x /%dxb 0x%x" % (qobj.type.sizeof, tolong(qobj)))
     #execute("p qstring_get_str(0x%x)" % (tolong(qobj)))
+    qobj = qobj.cast(QObject.pointer())
+    dbg("after cast: %r", qobj)
     qtype = qobj['type']
+    dbg("qtype(1): %r", qtype)
     if find_field(qtype, 'code'):
         qtype = qtype['code']
+    dbg("qtype(2): %r", qtype)
     if qtype == QTYPE_NONE:
         return None
     elif QTYPE_QINT is not None and qtype == QTYPE_QINT:
@@ -541,11 +549,16 @@ def object_prop_get_value(devtype, obj, prop, p):
       at object_get_canonical_path_component() and I don't know why
     * pc-dimm "size" property will crash if dimm->hostmem is not set
     """
+    dbg("object_prop_get_value(%r, %r, %r, %r) called", devtype, obj, prop, p)
     errp = g_new0(Error.pointer())
     try:
+        dbg("will call get_qobject:")
         val = object_property_get_qobject(obj, prop['name'], errp)
+        dbg("val = %r", val)
         if tolong(errp.dereference()) == 0:
+            dbg("will call qobject_value:")
             p['value'] = qobject_value(val)
+            dbg("p['value'] = %r", p['value'])
         else:
             msg = error_get_pretty(errp.dereference()).string()
             logger.info("Error trying to get property %r from devtype %r: %s" % (p['name'], devtype, msg))
@@ -571,6 +584,7 @@ def object_class_instance_props(devtype, oc):
     obj = object_new(c_string(devtype))
     #dbg("obj: 0x%x: %s", tolong(obj), obj.dereference())
     for prop in object_iter_props(obj):
+        dbg("converting instance prop %r", prop)
         p = value_to_dict(prop)
         if p['type'].startswith("child<"):
             # getting the value of a child property triggers the obj->parent != NULL assertion
