@@ -694,7 +694,7 @@ def handle_request(args, reqtype, *reqargs):
     handler = REQ_HANDLERS.get(reqtype)
     if handler is None:
         raise Exception("invalid request: %s" % (reqtype))
-    dbg("handling request: %r" % ((reqtype,) + reqargs, ))
+    logger.info("handling request: %r" % ((reqtype,) + reqargs, ))
     return handler(args, *reqargs)
 
 def handle_requests(args):
