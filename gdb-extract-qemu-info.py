@@ -288,8 +288,11 @@ def value_to_dict(v, follow_pointers={}):
     if v.type.code == gdb.TYPE_CODE_PTR:
         v = v.dereference()
 
-    #dbg("value_to_dict(%r)", v)
-    #dbg("address of value: %x", tolong(v.address))
+    dbg("value_to_dict(%r)", v)
+    dbg("type: %s", v.type)
+    v = v.cast(v.type.strip_typedefs())
+    dbg("new type: %s", v.type)
+    dbg("address of value: %x", tolong(v.address))
     for f in v.type.fields():
         fv = v[f.name]
         try:
