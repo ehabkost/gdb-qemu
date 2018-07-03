@@ -126,6 +126,7 @@ AUTO_GLOBALS = [
   (S, 'ObjectClass'),
   (S, 'GlobalProperty'),
   (S, 'QObject'),
+  (S, 'QObjectBase_'),
   (S, 'QBool'),
   (S, 'QFloat'),
   (S, 'QInt'),
@@ -470,6 +471,10 @@ def qobject_value(qobj):
     #execute("x /%dxb 0x%x" % (qobj.type.sizeof, tolong(qobj)))
     #execute("p qstring_get_str(0x%x)" % (tolong(qobj)))
     qobj = qobj.cast(QObject.pointer())
+    if QObjectBase_ is not None:
+        # handle API change introduced by 3d3eacaeccaab718ea0e2ddaa578bfae9e311c59:
+        # Now QObject base fields are inside `struct QObjectBase_ base` inside struct QObject
+        qobj = qobj.cast(QObjectBase_.pointer())
     dbg("after cast: %r", qobj)
     qtype = qobj['type']
     dbg("qtype(1): %r", qtype)
