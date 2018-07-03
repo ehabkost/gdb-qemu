@@ -427,6 +427,8 @@ def prop_info(prop):
             r['defval'] = tolong(defval)
         elif '<set_default_value_uint>' in fn:
             r['defval'] = toulong(defval)
+        elif '<set_default_uuid_auto>' in fn:
+            r['defval'] = "auto"
         else:
             raise Exception("I don't know how to extract default value for property %r", r)
     else:
